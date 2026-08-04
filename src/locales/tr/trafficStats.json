@@ -1,0 +1,63 @@
+{
+  "page": {
+    "title": "Trafik İstatistikleri",
+    "grandTotal": "Toplam {{value}}"
+  },
+  "ranges": {
+    "today": "Bugün",
+    "week": "Son 7 gün",
+    "month": "Son 30 gün"
+  },
+  "dimensions": {
+    "host": "Alan adı",
+    "process": "Süreç",
+    "group": "Strategy Group"
+  },
+  "metrics": {
+    "total": "Toplam",
+    "up": "Gönderilen",
+    "down": "İndirilen"
+  },
+  "table": {
+    "name": "Ad",
+    "group": "Grup",
+    "up": "Gönderilen",
+    "down": "İndirilen",
+    "total": "Toplam",
+    "share": "Pay",
+    "process": "Process"
+  },
+  "keys": {
+    "other": "Diğer",
+    "unattributed": "Atanmamış",
+    "unknown": "Bilinmiyor"
+  },
+  "actions": {
+    "export": "Dışa aktar"
+  },
+  "export": {
+    "summarySheet": "Özet",
+    "detailSheet": "Zamana göre",
+    "time": "Zaman",
+    "upBytes": "Gönderilen (bayt)",
+    "downBytes": "İndirilen (bayt)",
+    "totalBytes": "Toplam (bayt)",
+    "share": "Pay (%)",
+    "done": "Trafik istatistikleri dışa aktarıldı"
+  },
+  "clear": {
+    "title": "Trafik istatistikleri silinsin mi?",
+    "message": "Kaydedilen tüm geçmiş kalıcı olarak silinecek.",
+    "confirm": "Sil",
+    "done": "Trafik istatistikleri silindi"
+  },
+  "notes": {
+    "accuracy": "Bağlantılar yaklaşık saniyede bir örneklenir. Bir bağlantı kapanmadan hemen önceki trafik belirli bir alan adına veya sürece atanamaz ve “Atanmamış” olarak sayılır.",
+    "disabled": "Trafik istatistiği toplama kapalı. Ayarlar → Gelişmiş bölümünden açabilirsiniz."
+  },
+  "empty": "Bu dönem için kayıtlı trafik yok",
+  "filter": {
+    "group": "Group",
+    "all": "All"
+  }
+}

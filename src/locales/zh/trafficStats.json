@@ -1,0 +1,63 @@
+{
+  "page": {
+    "title": "流量统计",
+    "grandTotal": "合计 {{value}}"
+  },
+  "ranges": {
+    "today": "今天",
+    "week": "近 7 天",
+    "month": "近 30 天"
+  },
+  "dimensions": {
+    "host": "域名",
+    "process": "进程",
+    "group": "策略组"
+  },
+  "metrics": {
+    "total": "合计",
+    "up": "上行",
+    "down": "下行"
+  },
+  "table": {
+    "name": "名称",
+    "group": "策略组",
+    "process": "进程",
+    "up": "上行",
+    "down": "下行",
+    "total": "合计",
+    "share": "占比"
+  },
+  "filter": {
+    "group": "策略组",
+    "all": "全部"
+  },
+  "keys": {
+    "other": "其他",
+    "unattributed": "未归因",
+    "unknown": "未知"
+  },
+  "actions": {
+    "export": "导出"
+  },
+  "export": {
+    "summarySheet": "汇总",
+    "detailSheet": "按时间",
+    "time": "时间",
+    "upBytes": "上行(字节)",
+    "downBytes": "下行(字节)",
+    "totalBytes": "合计(字节)",
+    "share": "占比(%)",
+    "done": "已导出流量统计"
+  },
+  "clear": {
+    "title": "清空流量统计？",
+    "message": "已记录的历史流量将被永久删除。",
+    "confirm": "清空",
+    "done": "已清空流量统计"
+  },
+  "notes": {
+    "accuracy": "连接约每秒采样一次，连接关闭前最后一刻的流量无法归因到具体域名/进程，计入「未归因」。",
+    "disabled": "流量统计采集已关闭，可在「设置 → 高级」中开启。"
+  },
+  "empty": "该时间段内暂无流量记录"
+}

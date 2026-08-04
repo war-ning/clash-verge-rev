@@ -1,0 +1,63 @@
+{
+  "page": {
+    "title": "Statistik Trafik",
+    "grandTotal": "Total {{value}}"
+  },
+  "ranges": {
+    "today": "Hari ini",
+    "week": "7 hari terakhir",
+    "month": "30 hari terakhir"
+  },
+  "dimensions": {
+    "host": "Domain",
+    "process": "Proses",
+    "group": "Strategy Group"
+  },
+  "metrics": {
+    "total": "Total",
+    "up": "Unggah",
+    "down": "Unduh"
+  },
+  "table": {
+    "name": "Nama",
+    "group": "Grup",
+    "up": "Unggah",
+    "down": "Unduh",
+    "total": "Total",
+    "share": "Porsi",
+    "process": "Process"
+  },
+  "keys": {
+    "other": "Lainnya",
+    "unattributed": "Tidak teratribusi",
+    "unknown": "Tidak diketahui"
+  },
+  "actions": {
+    "export": "Ekspor"
+  },
+  "export": {
+    "summarySheet": "Ringkasan",
+    "detailSheet": "Menurut waktu",
+    "time": "Waktu",
+    "upBytes": "Unggah (byte)",
+    "downBytes": "Unduh (byte)",
+    "totalBytes": "Total (byte)",
+    "share": "Porsi (%)",
+    "done": "Statistik trafik diekspor"
+  },
+  "clear": {
+    "title": "Hapus statistik trafik?",
+    "message": "Seluruh riwayat yang tercatat akan dihapus permanen.",
+    "confirm": "Hapus",
+    "done": "Statistik trafik dihapus"
+  },
+  "notes": {
+    "accuracy": "Koneksi diambil sampelnya sekitar sekali per detik. Trafik pada saat terakhir sebelum koneksi ditutup tidak dapat diatribusikan ke domain atau proses tertentu dan dihitung sebagai “Tidak teratribusi”.",
+    "disabled": "Pengumpulan statistik trafik dimatikan. Aktifkan di Pengaturan → Lanjutan."
+  },
+  "empty": "Tidak ada trafik tercatat pada periode ini",
+  "filter": {
+    "group": "Group",
+    "all": "All"
+  }
+}

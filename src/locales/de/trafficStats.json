@@ -1,0 +1,63 @@
+{
+  "page": {
+    "title": "Traffic-Statistik",
+    "grandTotal": "Gesamt {{value}}"
+  },
+  "ranges": {
+    "today": "Heute",
+    "week": "Letzte 7 Tage",
+    "month": "Letzte 30 Tage"
+  },
+  "dimensions": {
+    "host": "Domain",
+    "process": "Prozess",
+    "group": "Strategy Group"
+  },
+  "metrics": {
+    "total": "Gesamt",
+    "up": "Upload",
+    "down": "Download"
+  },
+  "table": {
+    "name": "Name",
+    "group": "Gruppe",
+    "up": "Upload",
+    "down": "Download",
+    "total": "Gesamt",
+    "share": "Anteil",
+    "process": "Process"
+  },
+  "keys": {
+    "other": "Andere",
+    "unattributed": "Nicht zugeordnet",
+    "unknown": "Unbekannt"
+  },
+  "actions": {
+    "export": "Exportieren"
+  },
+  "export": {
+    "summarySheet": "Übersicht",
+    "detailSheet": "Nach Zeit",
+    "time": "Zeit",
+    "upBytes": "Upload (Bytes)",
+    "downBytes": "Download (Bytes)",
+    "totalBytes": "Gesamt (Bytes)",
+    "share": "Anteil (%)",
+    "done": "Traffic-Statistik exportiert"
+  },
+  "clear": {
+    "title": "Traffic-Statistik löschen?",
+    "message": "Der gesamte aufgezeichnete Verlauf wird endgültig gelöscht.",
+    "confirm": "Löschen",
+    "done": "Traffic-Statistik gelöscht"
+  },
+  "notes": {
+    "accuracy": "Verbindungen werden etwa einmal pro Sekunde abgetastet. Der Traffic unmittelbar vor dem Schließen einer Verbindung lässt sich keiner Domain bzw. keinem Prozess zuordnen und zählt als „Nicht zugeordnet“.",
+    "disabled": "Die Erfassung der Traffic-Statistik ist deaktiviert. Aktiviere sie unter Einstellungen → Erweitert."
+  },
+  "empty": "Für diesen Zeitraum wurde kein Traffic aufgezeichnet",
+  "filter": {
+    "group": "Group",
+    "all": "All"
+  }
+}

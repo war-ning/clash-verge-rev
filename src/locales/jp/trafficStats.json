@@ -1,0 +1,63 @@
+{
+  "page": {
+    "title": "通信量統計",
+    "grandTotal": "合計 {{value}}"
+  },
+  "ranges": {
+    "today": "今日",
+    "week": "過去 7 日間",
+    "month": "過去 30 日間"
+  },
+  "dimensions": {
+    "host": "ドメイン",
+    "process": "プロセス",
+    "group": "Strategy Group"
+  },
+  "metrics": {
+    "total": "合計",
+    "up": "アップロード",
+    "down": "ダウンロード"
+  },
+  "table": {
+    "name": "名前",
+    "group": "グループ",
+    "up": "アップロード",
+    "down": "ダウンロード",
+    "total": "合計",
+    "share": "割合",
+    "process": "Process"
+  },
+  "keys": {
+    "other": "その他",
+    "unattributed": "未割り当て",
+    "unknown": "不明"
+  },
+  "actions": {
+    "export": "エクスポート"
+  },
+  "export": {
+    "summarySheet": "集計",
+    "detailSheet": "時間別",
+    "time": "時刻",
+    "upBytes": "アップロード(バイト)",
+    "downBytes": "ダウンロード(バイト)",
+    "totalBytes": "合計(バイト)",
+    "share": "割合(%)",
+    "done": "通信量統計をエクスポートしました"
+  },
+  "clear": {
+    "title": "通信量統計を消去しますか？",
+    "message": "記録された履歴はすべて完全に削除されます。",
+    "confirm": "消去",
+    "done": "通信量統計を消去しました"
+  },
+  "notes": {
+    "accuracy": "接続は約 1 秒ごとにサンプリングされます。接続が閉じる直前の通信量は特定のドメインやプロセスに割り当てられず、「未割り当て」として計上されます。",
+    "disabled": "通信量統計の記録が無効です。「設定 → 詳細」から有効にできます。"
+  },
+  "empty": "この期間の通信記録はありません",
+  "filter": {
+    "group": "Group",
+    "all": "All"
+  }
+}

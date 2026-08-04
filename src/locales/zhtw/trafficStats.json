@@ -1,0 +1,63 @@
+{
+  "page": {
+    "title": "流量統計",
+    "grandTotal": "合計 {{value}}"
+  },
+  "ranges": {
+    "today": "今天",
+    "week": "近 7 天",
+    "month": "近 30 天"
+  },
+  "dimensions": {
+    "host": "網域",
+    "process": "行程",
+    "group": "Strategy Group"
+  },
+  "metrics": {
+    "total": "合計",
+    "up": "上傳",
+    "down": "下載"
+  },
+  "table": {
+    "name": "名稱",
+    "group": "策略組",
+    "up": "上傳",
+    "down": "下載",
+    "total": "合計",
+    "share": "佔比",
+    "process": "Process"
+  },
+  "keys": {
+    "other": "其他",
+    "unattributed": "未歸因",
+    "unknown": "未知"
+  },
+  "actions": {
+    "export": "匯出"
+  },
+  "export": {
+    "summarySheet": "匯總",
+    "detailSheet": "依時間",
+    "time": "時間",
+    "upBytes": "上傳(位元組)",
+    "downBytes": "下載(位元組)",
+    "totalBytes": "合計(位元組)",
+    "share": "佔比(%)",
+    "done": "已匯出流量統計"
+  },
+  "clear": {
+    "title": "清除流量統計？",
+    "message": "已記錄的歷史流量將被永久刪除。",
+    "confirm": "清除",
+    "done": "已清除流量統計"
+  },
+  "notes": {
+    "accuracy": "連線約每秒取樣一次，連線關閉前最後一刻的流量無法歸因到特定網域/行程，計入「未歸因」。",
+    "disabled": "流量統計收集已關閉，可在「設定 → 進階」中開啟。"
+  },
+  "empty": "此時間範圍內沒有流量紀錄",
+  "filter": {
+    "group": "Group",
+    "all": "All"
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "page": {
+    "title": "Estadísticas de tráfico",
+    "grandTotal": "Total {{value}}"
+  },
+  "ranges": {
+    "today": "Hoy",
+    "week": "Últimos 7 días",
+    "month": "Últimos 30 días"
+  },
+  "dimensions": {
+    "host": "Dominio",
+    "process": "Proceso",
+    "group": "Strategy Group"
+  },
+  "metrics": {
+    "total": "Total",
+    "up": "Subida",
+    "down": "Bajada"
+  },
+  "table": {
+    "name": "Nombre",
+    "group": "Grupo",
+    "up": "Subida",
+    "down": "Bajada",
+    "total": "Total",
+    "share": "Porcentaje",
+    "process": "Process"
+  },
+  "keys": {
+    "other": "Otros",
+    "unattributed": "Sin atribuir",
+    "unknown": "Desconocido"
+  },
+  "actions": {
+    "export": "Exportar"
+  },
+  "export": {
+    "summarySheet": "Resumen",
+    "detailSheet": "Por tiempo",
+    "time": "Hora",
+    "upBytes": "Subida (bytes)",
+    "downBytes": "Bajada (bytes)",
+    "totalBytes": "Total (bytes)",
+    "share": "Porcentaje (%)",
+    "done": "Estadísticas de tráfico exportadas"
+  },
+  "clear": {
+    "title": "¿Borrar las estadísticas de tráfico?",
+    "message": "Todo el historial registrado se eliminará permanentemente.",
+    "confirm": "Borrar",
+    "done": "Estadísticas de tráfico borradas"
+  },
+  "notes": {
+    "accuracy": "Las conexiones se muestrean aproximadamente una vez por segundo. El tráfico del último instante antes de cerrarse una conexión no puede atribuirse a un dominio o proceso concreto y se cuenta como «Sin atribuir».",
+    "disabled": "La recopilación de estadísticas de tráfico está desactivada. Actívala en Ajustes → Avanzado."
+  },
+  "empty": "No hay tráfico registrado en este periodo",
+  "filter": {
+    "group": "Group",
+    "all": "All"
+  }
+}

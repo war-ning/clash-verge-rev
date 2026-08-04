@@ -1,0 +1,63 @@
+{
+  "page": {
+    "title": "Traffic Stats",
+    "grandTotal": "Total {{value}}"
+  },
+  "ranges": {
+    "today": "Today",
+    "week": "Last 7 days",
+    "month": "Last 30 days"
+  },
+  "dimensions": {
+    "host": "Domain",
+    "process": "Process",
+    "group": "Strategy Group"
+  },
+  "metrics": {
+    "total": "Total",
+    "up": "Upload",
+    "down": "Download"
+  },
+  "table": {
+    "name": "Name",
+    "group": "Group",
+    "process": "Process",
+    "up": "Upload",
+    "down": "Download",
+    "total": "Total",
+    "share": "Share"
+  },
+  "filter": {
+    "group": "Group",
+    "all": "All"
+  },
+  "keys": {
+    "other": "Other",
+    "unattributed": "Unattributed",
+    "unknown": "Unknown"
+  },
+  "actions": {
+    "export": "Export"
+  },
+  "export": {
+    "summarySheet": "Summary",
+    "detailSheet": "By time",
+    "time": "Time",
+    "upBytes": "Upload (bytes)",
+    "downBytes": "Download (bytes)",
+    "totalBytes": "Total (bytes)",
+    "share": "Share (%)",
+    "done": "Traffic stats exported"
+  },
+  "clear": {
+    "title": "Clear traffic stats?",
+    "message": "All recorded traffic history will be permanently deleted.",
+    "confirm": "Clear",
+    "done": "Traffic stats cleared"
+  },
+  "notes": {
+    "accuracy": "Connections are sampled about once per second. Traffic in the final moment before a connection closes cannot be attributed to a specific domain or process and is counted as “Unattributed”.",
+    "disabled": "Traffic stats collection is turned off. Turn it on in Settings → Advanced."
+  },
+  "empty": "No traffic recorded for this period"
+}
