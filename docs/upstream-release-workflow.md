@@ -2,6 +2,8 @@
 
 ## 当前起点
 
+直接在当前项目 `D:\project\MyDemo\verge` 开发，当前分支为 `codex/traffic-stats-rewrite`。不建立额外 worktree；任何 worktree 都不得放在 C 盘。
+
 - 自己的仓库：`origin`，指向 `war-ning/clash-verge-rev`。
 - 官方仓库：`upstream`，指向 `clash-verge-rev/clash-verge-rev`。
 - 重写分支：`codex/traffic-stats-rewrite`，从官方 `v2.5.8` 开始。
