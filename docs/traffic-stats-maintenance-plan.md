@@ -30,7 +30,7 @@
 
 利用本次允许从零重写的机会，直接使用已有 fork 和官方历史建立新的自定义维护线，不沿用旧统计分支的独立快照起点。
 
-**本次推荐方案：以最新正式版 `v2.5.8` 为起点，建立 `codex/traffic-stats-rewrite`。** 这是待新会话执行的方案，本会话尚未建立或切换该分支。
+**本次推荐方案：以最新正式版 `v2.5.8` 为起点，建立 `codex/traffic-stats-rewrite`。** 现已在独立工作目录建立该分支，官方基础提交为 `4337bd85`；新会话可进入该工作目录继续。统计重写实现尚未开始。
 
 如果明确要使用尚未正式发布的最新代码，可以改从 `upstream/dev` 起步；需要同时承担开发中变动的适配和排错成本。“最新正式版”和“最新开发代码”不是同一件事。
 
@@ -148,3 +148,7 @@
 - [Clash Verge Rev 官方项目](https://github.com/clash-verge-rev/clash-verge-rev)
 - [本次核对的官方正式版 v2.5.8](https://github.com/clash-verge-rev/clash-verge-rev/releases/tag/v2.5.8)
 - [GitHub：同步自己的仓库与上游](https://docs.github.com/en/pull-requests/how-tos/work-with-forks/syncing-a-fork)
+
+## 正式版标签同步操作
+
+具体命令与后续升级步骤见[正式版标签同步流程](upstream-release-workflow.md)。官方标签以 `upstream/版本号` 的名称单独保存，自定义功能继续保留在自己的维护分支。
