@@ -6,7 +6,8 @@
   "ranges": {
     "today": "今日",
     "week": "過去 7 日間",
-    "month": "過去 30 日間"
+    "month": "過去 30 日間",
+    "custom": "Custom dates"
   },
   "dimensions": {
     "host": "ドメイン",
@@ -25,15 +26,22 @@
     "down": "ダウンロード",
     "total": "合計",
     "share": "割合",
-    "process": "Process"
+    "process": "Process",
+    "copyName": "Copy full name",
+    "copyProcessPath": "Copy process path",
+    "processUnavailable": "Process information unavailable"
   },
   "keys": {
     "other": "その他",
     "unattributed": "未割り当て",
-    "unknown": "不明"
+    "unknown": "不明",
+    "unknownProcess": "Unidentified process",
+    "unknownHost": "Unidentified destination",
+    "unknownGroup": "Unidentified group"
   },
   "actions": {
-    "export": "エクスポート"
+    "export": "エクスポート",
+    "showAll": "Show all matches"
   },
   "export": {
     "summarySheet": "集計",
@@ -53,11 +61,49 @@
   },
   "notes": {
     "accuracy": "接続は約 1 秒ごとにサンプリングされます。接続が閉じる直前の通信量は特定のドメインやプロセスに割り当てられず、「未割り当て」として計上されます。",
-    "disabled": "通信量統計の記録が無効です。「設定 → 詳細」から有効にできます。"
+    "disabled": "通信量統計の記録が無効です。「設定 → 詳細」から有効にできます。",
+    "scope": "Includes traffic handled by the core, including DIRECT. This is not a provider billing total.",
+    "manualRefresh": "Refresh to update this snapshot.",
+    "summary": "Grouped by destination or process identity. Switch to Details to see strategy groups and processes.",
+    "detail": "Each row identifies a destination/process and its strategy group.",
+    "loading": "Loading traffic statistics",
+    "loadError": "Unable to load statistics.",
+    "dimensionDisabled": "Collection for this dimension is disabled. Existing history remains available; enable collection in Settings → Advanced.",
+    "incomplete": "Some statistics may be incomplete.",
+    "categories": "Unidentified: a connection is known but a field is missing. Unattributed: traffic with no sampled connection details. Other: rows combined for display, or details already merged in older history.",
+    "topN": "Showing the top 50 matches plus diagnostic categories. Remaining rows are combined. Export includes all matching saved rows."
   },
   "empty": "この期間の通信記録はありません",
   "filter": {
     "group": "Group",
-    "all": "All"
-  }
+    "all": "All",
+    "allGroups": "All strategy groups",
+    "selectAll": "Select all",
+    "reset": "Reset groups",
+    "range": "Date range",
+    "dimension": "Dimension",
+    "metric": "Traffic metric",
+    "view": "View",
+    "summary": "Summary",
+    "detail": "Details",
+    "search": "Search name, path or group",
+    "startDate": "Start date",
+    "endDate": "End date",
+    "apply": "Apply dates",
+    "invalidRange": "Choose up to 366 days, ending no later than today."
+  },
+  "warnings": {
+    "storage_failed": "Recent data could not be saved; retry later.",
+    "read_failed": "Some history files could not be read.",
+    "legacy_data": "Unsupported older history was skipped.",
+    "legacy_aggregated": "Older history contains permanently merged details.",
+    "sampling_gaps": "Some periods have no recorded samples."
+  },
+  "chart": {
+    "legend": "Traffic categories",
+    "description": "Traffic over time. Use the left and right arrow keys to inspect periods.",
+    "notObserved": "No recorded samples",
+    "total": "Period total"
+  },
+  "noMatches": "No matching records. Try resetting groups or clearing the search."
 }

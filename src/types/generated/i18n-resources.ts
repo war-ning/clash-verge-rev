@@ -1422,6 +1422,13 @@ export interface TranslationResources {
     trafficStats: {
       actions: {
         export: string
+        showAll: string
+      }
+      chart: {
+        description: string
+        legend: string
+        notObserved: string
+        total: string
       }
       clear: {
         confirm: string
@@ -1447,39 +1454,78 @@ export interface TranslationResources {
       }
       filter: {
         all: string
+        allGroups: string
+        apply: string
+        detail: string
+        dimension: string
+        endDate: string
         group: string
+        invalidRange: string
+        metric: string
+        range: string
+        reset: string
+        search: string
+        selectAll: string
+        startDate: string
+        summary: string
+        view: string
       }
       keys: {
         other: string
         unattributed: string
         unknown: string
+        unknownGroup: string
+        unknownHost: string
+        unknownProcess: string
       }
       metrics: {
         down: string
         total: string
         up: string
       }
+      noMatches: string
       notes: {
         accuracy: string
+        categories: string
+        detail: string
+        dimensionDisabled: string
         disabled: string
+        incomplete: string
+        loadError: string
+        loading: string
+        manualRefresh: string
+        scope: string
+        summary: string
+        topN: string
       }
       page: {
         grandTotal: string
         title: string
       }
       ranges: {
+        custom: string
         month: string
         today: string
         week: string
       }
       table: {
+        copyName: string
+        copyProcessPath: string
         down: string
         group: string
         name: string
         process: string
+        processUnavailable: string
         share: string
         total: string
         up: string
+      }
+      warnings: {
+        legacy_aggregated: string
+        legacy_data: string
+        read_failed: string
+        sampling_gaps: string
+        storage_failed: string
       }
     }
   }

@@ -130,6 +130,8 @@ struct ConnectionMetadataPayload {
     remote_destination: String,
     #[serde(default)]
     process: String,
+    #[serde(rename = "processPath", default)]
+    process_path: String,
 }
 
 /// 空字符串视为字段缺失。
@@ -153,7 +155,7 @@ impl ConnectionPayload {
             node,
             group,
             host,
-            process: non_empty(self.metadata.process),
+            process: non_empty(self.metadata.process_path).or_else(|| non_empty(self.metadata.process)),
         }
     }
 }
@@ -299,6 +301,13 @@ pub async fn disconnect_connection(connection_id: ConnectionId) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn process_path_is_preserved_and_used_when_process_name_is_missing() {
+        let raw = r#"{"uploadTotal":0,"downloadTotal":0,"connections":[{"id":"a","metadata":{"processPath":"C:\\Apps\\app.exe"}}]}"#;
+        let event = parse(raw).expect("valid snapshot");
+        assert_eq!(event.connections[0].process.as_deref(), Some(r"C:\Apps\app.exe"));
+    }
 
     fn parse(raw: &str) -> Option<ConnectionsSnapshotEvent> {
         match parse_connections_event(raw.as_bytes()) {

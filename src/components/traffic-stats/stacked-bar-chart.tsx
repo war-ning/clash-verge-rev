@@ -1,6 +1,7 @@
 import { Box, Paper, Typography, useTheme } from '@mui/material'
 import dayjs from 'dayjs'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import parseTraffic from '@/utils/parse-traffic'
 
@@ -20,7 +21,6 @@ interface Props {
 const PADDING = { top: 12, right: 12, bottom: 24, left: 60 }
 const BAR_GAP_RATIO = 0.22
 const Y_TICK_COUNT = 4
-const TOOLTIP_ROWS = 6
 
 const formatBytes = (value: number) => parseTraffic(value).join(' ')
 
@@ -62,6 +62,7 @@ export const StackedBarChart = ({
   metric,
   height = 220,
 }: Props) => {
+  const { t } = useTranslation()
   const theme = useTheme()
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -167,6 +168,23 @@ export const StackedBarChart = ({
     series.forEach((values, bucketIndex) => {
       const x =
         PADDING.left + slotWidth * bucketIndex + (slotWidth - barWidth) / 2
+      if (buckets[bucketIndex]?.observed === false) {
+        // Hatching marks a gap in collection, rather than a measured zero.
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(x, PADDING.top, barWidth, plotHeight)
+        ctx.clip()
+        ctx.strokeStyle = textColor
+        ctx.globalAlpha = 0.2
+        for (let offset = -plotHeight; offset < barWidth; offset += 8) {
+          ctx.beginPath()
+          ctx.moveTo(x + offset, PADDING.top + plotHeight)
+          ctx.lineTo(x + offset + plotHeight, PADDING.top)
+          ctx.stroke()
+        }
+        ctx.restore()
+        return
+      }
       let baseline = PADDING.top + plotHeight
 
       values.forEach((value, keyIndex) => {
@@ -236,78 +254,196 @@ export const StackedBarChart = ({
       .map((key, index) => ({ key, value: hoveredValues[index] ?? 0 }))
       .filter((row) => row.value > 0)
       .sort((left, right) => right.value - left.value)
-      .slice(0, TOOLTIP_ROWS)
   }, [hoveredValues, orderedKeys])
 
-  return (
-    <Box
-      ref={containerRef}
-      sx={{ position: 'relative', width: '100%', height }}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={() => setHoverIndex(null)}
-    >
-      <canvas ref={canvasRef} style={{ display: 'block' }} />
+  const bucketSummary = hoveredBucket
+    ? `${dayjs(hoveredBucket.ts).format('YYYY-MM-DD HH:mm')}: ${
+        hoveredBucket.observed === false
+          ? t('trafficStats.chart.notObserved')
+          : `${t('trafficStats.chart.total')} ${formatBytes((hoveredValues ?? []).reduce((sum, value) => sum + value, 0))}. ${tooltipRows.map((row) => `${labelOf(row.key)} ${formatBytes(row.value)}`).join(', ')}`
+      }`
+    : ''
 
-      {hoveredBucket && tooltipRows.length > 0 && (
-        <Paper
-          elevation={4}
-          sx={{
-            position: 'absolute',
-            top: Math.min(
-              Math.max(pointer.y - 12, 4),
-              Math.max(height - 120, 4),
-            ),
-            left:
-              pointer.x > size.width / 2
-                ? undefined
-                : Math.min(pointer.x + 16, size.width - 8),
-            right:
-              pointer.x > size.width / 2
-                ? Math.max(size.width - pointer.x + 16, 8)
-                : undefined,
-            px: 1.2,
-            py: 0.8,
-            pointerEvents: 'none',
-            maxWidth: 240,
-            zIndex: 2,
-          }}
-        >
-          <Typography variant="caption" sx={{ fontWeight: 600 }}>
-            {dayjs(hoveredBucket.ts).format(
-              granularity === 'hour' ? 'MM-DD HH:mm' : 'YYYY-MM-DD',
-            )}
-          </Typography>
-          {tooltipRows.map((row) => (
-            <Box
-              key={row.key}
-              sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mt: 0.3 }}
+  return (
+    <Box>
+      <Box
+        ref={containerRef}
+        tabIndex={0}
+        role="group"
+        aria-label={t('trafficStats.chart.description')}
+        sx={{
+          position: 'relative',
+          width: '100%',
+          height,
+          '&:focus-visible': {
+            outline: '2px solid',
+            outlineColor: 'primary.main',
+            outlineOffset: 2,
+          },
+        }}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => setHoverIndex(null)}
+        onFocus={() =>
+          setHoverIndex((current) => current ?? (buckets.length ? 0 : null))
+        }
+        onKeyDown={(event) => {
+          if (
+            !buckets.length ||
+            !['ArrowLeft', 'ArrowRight', 'Home', 'End', 'Escape'].includes(
+              event.key,
+            )
+          )
+            return
+          event.preventDefault()
+          if (event.key === 'Escape') {
+            setHoverIndex(null)
+            return
+          }
+          setPointer({ x: PADDING.left, y: 8 })
+          setHoverIndex((current) => {
+            if (event.key === 'Home') return 0
+            if (event.key === 'End') return buckets.length - 1
+            return Math.max(
+              0,
+              Math.min(
+                buckets.length - 1,
+                (current ?? 0) + (event.key === 'ArrowRight' ? 1 : -1),
+              ),
+            )
+          })
+        }}
+      >
+        <canvas
+          ref={canvasRef}
+          aria-hidden="true"
+          style={{ display: 'block' }}
+        />
+
+        {hoveredBucket && (
+          <Paper
+            elevation={4}
+            onMouseMove={(event) => event.stopPropagation()}
+            sx={{
+              position: 'absolute',
+              top: Math.min(
+                Math.max(pointer.y - 12, 4),
+                Math.max(height - 120, 4),
+              ),
+              left: 8,
+              right: 8,
+              px: 1.2,
+              py: 0.8,
+              pointerEvents: 'auto',
+              maxWidth: 400,
+              maxHeight: 'min(60vh, 420px)',
+              overflowY: 'auto',
+              userSelect: 'text',
+              zIndex: 2,
+            }}
+          >
+            <Typography variant="caption" sx={{ fontWeight: 600 }}>
+              {dayjs(hoveredBucket.ts).format(
+                granularity === 'hour' ? 'MM-DD HH:mm' : 'YYYY-MM-DD',
+              )}
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{ display: 'block', fontWeight: 600 }}
             >
+              {hoveredBucket.observed === false
+                ? t('trafficStats.chart.notObserved')
+                : `${t('trafficStats.chart.total')}: ${formatBytes((hoveredValues ?? []).reduce((sum, value) => sum + value, 0))}`}
+            </Typography>
+            {tooltipRows.map((row) => (
               <Box
+                key={row.key}
                 sx={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '2px',
-                  flexShrink: 0,
-                  bgcolor: colorOf(row.key),
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.8,
+                  mt: 0.3,
                 }}
-              />
-              <Typography
-                variant="caption"
-                noWrap
-                sx={{ flex: 1, minWidth: 0 }}
               >
-                {labelOf(row.key)}
-              </Typography>
-              <Typography
-                variant="caption"
-                sx={{ fontVariantNumeric: 'tabular-nums' }}
-              >
-                {formatBytes(row.value)}
-              </Typography>
-            </Box>
-          ))}
-        </Paper>
-      )}
+                <Box
+                  sx={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '2px',
+                    flexShrink: 0,
+                    bgcolor: colorOf(row.key),
+                  }}
+                />
+                <Typography
+                  variant="caption"
+                  sx={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}
+                >
+                  {labelOf(row.key)}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{ fontVariantNumeric: 'tabular-nums' }}
+                >
+                  {formatBytes(row.value)}
+                </Typography>
+              </Box>
+            ))}
+          </Paper>
+        )}
+      </Box>
+      <Box
+        aria-label={t('trafficStats.chart.legend')}
+        sx={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 1,
+          mt: 1,
+          userSelect: 'text',
+        }}
+      >
+        {orderedKeys.map((key) => (
+          <Box
+            key={key}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.5,
+              maxWidth: '100%',
+            }}
+          >
+            <Box
+              sx={{
+                width: 9,
+                height: 9,
+                flexShrink: 0,
+                bgcolor: colorOf(key),
+                borderRadius: '2px',
+              }}
+            />
+            <Typography variant="caption" sx={{ overflowWrap: 'anywhere' }}>
+              {labelOf(key)}
+            </Typography>
+          </Box>
+        ))}
+        {buckets.some((bucket) => bucket.observed === false) && (
+          <Typography variant="caption" color="text.secondary">
+            ▧ {t('trafficStats.chart.notObserved')}
+          </Typography>
+        )}
+      </Box>
+      <Box
+        aria-live="polite"
+        sx={{
+          position: 'absolute',
+          width: 1,
+          height: 1,
+          padding: 0,
+          margin: -1,
+          overflow: 'hidden',
+          clipPath: 'inset(50%)',
+        }}
+      >
+        {bucketSummary}
+      </Box>
     </Box>
   )
 }

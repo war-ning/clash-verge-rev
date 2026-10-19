@@ -25,7 +25,7 @@ use crate::{
         xlsx::{self, Cell, Sheet},
     },
 };
-use anyhow::Result;
+use anyhow::{Result, bail};
 use chrono::{Local, NaiveDate, TimeZone as _, Timelike as _};
 use clash_verge_logging::{Type, logging};
 use once_cell::sync::OnceCell;
@@ -54,10 +54,6 @@ const FLUSH_INTERVAL_SECS: i64 = 60;
 const DEFAULT_RETENTION_DAYS: u32 = 30;
 const MIN_RETENTION_DAYS: u32 = 1;
 const MAX_RETENTION_DAYS: u32 = 365;
-
-/// 每个小时桶、每个维度保留的条目上限，其余合并进 [`OTHER_KEY`]。
-/// 键是「名称 × 策略组」复合键，域名维度基数最大，故取相对宽松的上限。
-const MAX_KEYS_PER_BUCKET: usize = 150;
 
 /// 超出 Top-N 后被合并的条目。
 pub const OTHER_KEY: &str = "__other__";
@@ -129,6 +125,8 @@ type DimensionMap = HashMap<String, TrafficPair>;
 /// 单个小时桶内两个维度各自的统计。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct DimensionBuckets {
+    #[serde(default)]
+    observed: bool,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     host: DimensionMap,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
@@ -147,21 +145,15 @@ impl DimensionBuckets {
     }
 
     fn is_empty(&self) -> bool {
-        self.host.is_empty() && self.process.is_empty() && self.group.is_empty()
+        !self.observed && self.host.is_empty() && self.process.is_empty() && self.group.is_empty()
     }
 
     /// 把另一份增量合并进来。
     fn merge(&mut self, other: &Self) {
+        self.observed |= other.observed;
         merge_map(&mut self.host, &other.host);
         merge_map(&mut self.process, &other.process);
         merge_map(&mut self.group, &other.group);
-    }
-
-    /// Top-N 截断，被截掉的条目合并进 [`OTHER_KEY`]（总量守恒）。
-    fn truncate(&mut self) {
-        truncate_map(&mut self.host, MAX_KEYS_PER_BUCKET);
-        truncate_map(&mut self.process, MAX_KEYS_PER_BUCKET);
-        truncate_map(&mut self.group, MAX_KEYS_PER_BUCKET);
     }
 }
 
@@ -174,6 +166,7 @@ fn merge_map(target: &mut DimensionMap, source: &DimensionMap) {
 /// 保留合计最大的 `capacity` 项，其余合并进 [`OTHER_KEY`]。
 ///
 /// [`OTHER_KEY`] 与 [`UNATTRIBUTED_KEY`] 是聚合项，即便排名靠后也不会被丢弃。
+#[cfg(test)]
 fn truncate_map(map: &mut DimensionMap, capacity: usize) {
     if map.len() <= capacity {
         return;
@@ -286,19 +279,24 @@ struct Accumulator {
 impl Accumulator {
     /// 消费一帧快照，把增量累加到 `date`/`hour` 对应的桶。
     fn ingest(&mut self, snapshot: ConnectionsSnapshotEvent, settings: StatsSettings, date: NaiveDate, hour: u32) {
-        let mut delta = DimensionBuckets::default();
+        let baseline_only = self.last_totals.is_none();
+        let mut delta = DimensionBuckets {
+            observed: true,
+            ..Default::default()
+        };
         let mut new_seen: HashMap<String, TrafficPair> = HashMap::with_capacity(snapshot.connections.len());
         let mut attributed = TrafficPair::default();
 
         for conn in snapshot.connections {
             let previous = self.seen.get(&conn.id).copied();
-            // 首次见到的连接：把它已累计的全量计入，比记 0 更接近真值
-            // （这部分字节同样包含在全局累计计数里，两侧口径一致）。
+            // 会话首帧只建立基线，避免启动、重连或清空后重计历史累计值。
+            // 会话内新连接的生命周期累计值可完整计入。
             let (up, down) = match previous {
                 Some(prev) => (
                     conn.upload.saturating_sub(prev.up()),
                     conn.download.saturating_sub(prev.down()),
                 ),
+                None if baseline_only => (0, 0),
                 None => (conn.upload, conn.download),
             };
             new_seen.insert(conn.id, TrafficPair(conn.upload, conn.download));
@@ -315,20 +313,17 @@ impl Accumulator {
                     &mut delta.host,
                     conn.host.as_deref(),
                     group,
-                    conn.process.as_deref(),
+                    if settings.record_process {
+                        conn.process.as_deref()
+                    } else {
+                        None
+                    },
                     up,
                     down,
                 );
             }
             if settings.record_process {
-                add_key(
-                    &mut delta.process,
-                    conn.process.as_deref(),
-                    group,
-                    None,
-                    up,
-                    down,
-                );
+                add_key(&mut delta.process, conn.process.as_deref(), group, None, up, down);
             }
             // 策略组维度总是记录（group 字段总是可用）。
             add_named_key(&mut delta.group, group_name, up, down);
@@ -443,23 +438,16 @@ fn split_key(key: &str) -> (&str, Option<&str>, Option<&str>) {
 }
 
 /// 连接存在但该维度字段缺失（如未开 find-process-mode）→ [`UNKNOWN_KEY`]。
-fn add_key(
-    map: &mut DimensionMap,
-    name: Option<&str>,
-    group: Option<&str>,
-    process: Option<&str>,
-    up: u64,
-    down: u64,
-) {
+fn add_key(map: &mut DimensionMap, name: Option<&str>, group: Option<&str>, process: Option<&str>, up: u64, down: u64) {
     let key = match name {
-        Some(name) => {
+        name => {
+            let name = name.unwrap_or(UNKNOWN_KEY);
             let grp = group.unwrap_or(UNKNOWN_KEY);
             match process {
                 Some(proc) => compose_three_part_key(name, grp, proc),
                 None => compose_key(name, grp),
             }
         }
-        None => UNKNOWN_KEY.to_owned(),
     };
     map.entry(key).or_default().add(up, down);
 }
@@ -485,6 +473,33 @@ pub struct TrafficStatsQuery {
     /// 只返回合计最大的前 N 项，其余合并进 [`OTHER_KEY`]。
     #[serde(default)]
     pub top_n: Option<usize>,
+    #[serde(default)]
+    pub groups: Vec<String>,
+    #[serde(default)]
+    pub metric: StatsMetric,
+    #[serde(default)]
+    pub search: String,
+    #[serde(default)]
+    pub aggregate: bool,
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum StatsMetric {
+    #[default]
+    Total,
+    Up,
+    Down,
+}
+
+impl StatsMetric {
+    fn value(self, pair: TrafficPair) -> u64 {
+        match self {
+            Self::Total => pair.total(),
+            Self::Up => pair.up(),
+            Self::Down => pair.down(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -509,6 +524,10 @@ pub struct TrafficStatsEntry {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExportLabels {
+    #[serde(default)]
+    pub context: String,
+    #[serde(default)]
+    pub warning_labels: HashMap<String, String>,
     pub summary_sheet: String,
     pub detail_sheet: String,
     pub time: String,
@@ -530,6 +549,7 @@ pub struct TrafficStatsBucket {
     /// 桶起点（Unix 毫秒，本地时区对齐）。
     pub ts: i64,
     pub items: Vec<TrafficStatsEntry>,
+    pub observed: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -541,6 +561,8 @@ pub struct TrafficStatsResult {
     pub totals: Vec<TrafficStatsEntry>,
     /// 是否因 Top-N 而产生了 [`OTHER_KEY`] 合并项。
     pub truncated: bool,
+    pub groups: Vec<String>,
+    pub warnings: Vec<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -565,6 +587,8 @@ pub struct TrafficStatsManager {
     /// 串行化磁盘读写，避免落盘与查询互相覆盖。
     io_lock: tokio::sync::Mutex<()>,
     last_flush: AtomicI64,
+    last_cleanup: AtomicI64,
+    warnings: Mutex<HashSet<String>>,
 }
 
 impl TrafficStatsManager {
@@ -579,6 +603,8 @@ impl TrafficStatsManager {
                 accumulator: Mutex::new(Accumulator::default()),
                 io_lock: tokio::sync::Mutex::new(()),
                 last_flush: AtomicI64::new(0),
+                last_cleanup: AtomicI64::new(0),
+                warnings: Mutex::new(HashSet::new()),
             }
         })
     }
@@ -600,6 +626,7 @@ impl TrafficStatsManager {
         let settings = Self::load_settings().await;
         self.apply_settings(settings);
         self.ensure_runner();
+        Self::cleanup_expired(settings.retention_days).await?;
         Ok(())
     }
 
@@ -622,7 +649,7 @@ impl TrafficStatsManager {
         };
 
         if changed {
-            let _ = self.settings_tx.send(settings);
+            self.settings_tx.send_replace(settings);
         }
     }
 
@@ -652,6 +679,7 @@ impl TrafficStatsManager {
             if handle::Handle::global().is_exiting() {
                 break;
             }
+            Self::global().flush_if_due().await;
 
             let settings = {
                 let guard = rx.borrow_and_update();
@@ -660,9 +688,15 @@ impl TrafficStatsManager {
                 settings
             };
             if !settings.enabled {
-                Self::global().reset_accumulator();
-                if rx.changed().await.is_err() {
-                    break;
+                if let Err(err) = Self::global().flush().await {
+                    logging!(warn, Type::Network, "停止采集前保存失败: {err}");
+                }
+                Self::global().reset_accumulator_baseline();
+                tokio::select! {
+                    changed = rx.changed() => if changed.is_err() { break; },
+                    _ = tokio::time::sleep(Duration::from_secs(3600)) => {
+                        let _ = Self::cleanup_expired(settings.retention_days).await;
+                    }
                 }
                 continue;
             }
@@ -707,12 +741,19 @@ impl TrafficStatsManager {
         stream: &mut MihomoWsEventStream<ConnectionsSnapshotEvent>,
         rx: &mut watch::Receiver<StatsSettings>,
     ) -> ConsumeOutcome {
+        let mut maintenance = tokio::time::interval(Duration::from_secs(60));
         loop {
-            let state = stream
+            let state = tokio::select! {
+                state = stream
                 .next_event(IDLE_POLL_INTERVAL, STALE_TIMEOUT, || {
                     handle::Handle::global().is_exiting()
                 })
-                .await;
+                => state,
+                _ = maintenance.tick() => {
+                    Self::global().flush_if_due().await;
+                    continue;
+                }
+            };
 
             match state {
                 connections_stream::StreamConsumeState::Event(snapshot) => {
@@ -762,6 +803,15 @@ impl TrafficStatsManager {
     // -- 落盘 -------------------------------------------------------------
 
     async fn flush_if_due(&self) {
+        let now = Local::now().timestamp();
+        if now - self.last_cleanup.load(Ordering::Acquire) >= 86400 {
+            if Self::cleanup_expired(self.current_settings().retention_days)
+                .await
+                .is_ok()
+            {
+                self.last_cleanup.store(now, Ordering::Release);
+            }
+        }
         let dirty = {
             let guard = self.accumulator.lock();
             let dirty = guard.dirty;
@@ -785,8 +835,7 @@ impl TrafficStatsManager {
 
     /// 把内存增量合并进对应日期的文件。
     ///
-    /// 单日合并失败只记日志并丢弃该日增量——统计属尽力而为的数据，
-    /// 不值得为它把失败的增量无限堆在内存里。
+    /// 单日写入失败时保留增量，供下一次重试，并报告故障。
     pub async fn flush(&self) -> Result<()> {
         let guard = self.io_lock.lock().await;
         let pending = {
@@ -796,25 +845,57 @@ impl TrafficStatsManager {
             pending
         };
 
-        self.last_flush.store(Local::now().timestamp(), Ordering::Release);
+        let mut failure = None;
+        let cutoff = Local::now().date_naive()
+            - chrono::Duration::days(i64::from(self.current_settings().retention_days.saturating_sub(1)));
         for (date, hours) in pending {
-            if let Err(err) = Self::merge_day_file(date, hours).await {
+            if date < cutoff {
+                continue;
+            }
+            if let Err(err) = Self::merge_day_file(date, hours.clone()).await {
                 logging!(warn, Type::Network, "写入 {date} 的流量统计失败: {err}");
+                let mut acc = self.accumulator.lock();
+                for (hour, bucket) in hours {
+                    acc.pending
+                        .entry(date)
+                        .or_default()
+                        .entry(hour)
+                        .or_default()
+                        .merge(&bucket);
+                }
+                acc.dirty = true;
+                failure = Some(err);
             }
         }
         drop(guard);
+        if let Some(err) = failure {
+            self.warnings.lock().insert("storage_failed".to_owned());
+            return Err(err);
+        }
+        self.warnings.lock().remove("storage_failed");
+        self.last_flush.store(Local::now().timestamp(), Ordering::Release);
         Ok(())
     }
 
     async fn merge_day_file(date: NaiveDate, hours: HashMap<u32, DimensionBuckets>) -> Result<()> {
         let path = Self::day_file_path(date)?;
-        let mut day = Self::read_day_file(&path).await.unwrap_or_else(|| DayFile::new(date));
+        let mut day = match tokio::fs::read(&path).await {
+            Ok(raw) => {
+                if let Some(parsed) = decode_day_file(&raw)? {
+                    parsed
+                } else {
+                    let archive = path.with_extension(format!("json.legacy.{}.bak", Local::now().timestamp_millis()));
+                    tokio::fs::copy(&path, archive).await?;
+                    Self::global().warnings.lock().insert("legacy_data".to_owned());
+                    DayFile::new(date)
+                }
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => DayFile::new(date),
+            Err(err) => return Err(err.into()),
+        };
 
         for (hour, delta) in hours {
             day.buckets.entry(hour).or_default().merge(&delta);
-        }
-        for bucket in day.buckets.values_mut() {
-            bucket.truncate();
         }
 
         Self::write_day_file(&path, &day).await
@@ -822,13 +903,6 @@ impl TrafficStatsManager {
 
     fn day_file_path(date: NaiveDate) -> Result<PathBuf> {
         Ok(dirs::traffic_stats_dir()?.join(format!("{}.json", date.format("%Y-%m-%d"))))
-    }
-
-    /// 读取一天的统计；文件缺失、损坏或版本不符时一律视为无数据。
-    async fn read_day_file(path: &Path) -> Option<DayFile> {
-        let raw = tokio::fs::read(path).await.ok()?;
-        let day = serde_json::from_slice::<DayFile>(&raw).ok()?;
-        (day.v == STATS_FILE_VERSION).then_some(day)
     }
 
     /// 先写临时文件再 rename，避免写到一半掉电毁掉历史数据。
@@ -842,19 +916,25 @@ impl TrafficStatsManager {
 
     async fn cleanup_expired(retention_days: u32) -> Result<()> {
         let dir = dirs::traffic_stats_dir()?;
-        let cutoff = Local::now().date_naive() - chrono::Duration::days(i64::from(retention_days));
+        let cutoff = Local::now().date_naive() - chrono::Duration::days(i64::from(retention_days.saturating_sub(1)));
 
         let mut entries = tokio::fs::read_dir(&dir).await?;
         while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();
-            let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) else {
+            let Some(stem) = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .and_then(|name| name.get(..10))
+            else {
                 continue;
             };
             let Ok(date) = NaiveDate::parse_from_str(stem, "%Y-%m-%d") else {
                 continue;
             };
             if date < cutoff {
-                let _ = tokio::fs::remove_file(&path).await;
+                if entry.file_type().await?.is_file() {
+                    tokio::fs::remove_file(&path).await?;
+                }
             }
         }
         Ok(())
@@ -863,14 +943,16 @@ impl TrafficStatsManager {
     /// 清空全部历史统计（内存 + 磁盘）。
     pub async fn clear(&self) -> Result<()> {
         let guard = self.io_lock.lock().await;
-        self.reset_accumulator();
-
         let dir = dirs::traffic_stats_dir()?;
         let mut entries = tokio::fs::read_dir(&dir).await?;
         while let Some(entry) = entries.next_entry().await? {
             // 目录上调用 remove_file 会失败，忽略即可。
-            let _ = tokio::fs::remove_file(entry.path()).await;
+            if entry.file_type().await?.is_file() {
+                tokio::fs::remove_file(entry.path()).await?;
+            }
         }
+        self.reset_accumulator();
+        self.warnings.lock().clear();
         drop(guard);
         Ok(())
     }
@@ -879,48 +961,100 @@ impl TrafficStatsManager {
 
     /// 查询指定时间范围与维度的统计。
     pub async fn query(&self, query: &TrafficStatsQuery) -> Result<TrafficStatsResult> {
+        if query.end_ms <= query.start_ms || query.end_ms.saturating_sub(query.start_ms) > 366 * 86400 * 1000 {
+            bail!("Statistics range must be positive and no longer than 366 days");
+        }
         // 先落盘，否则最近一个 flush 周期内的数据查不到。
-        self.flush().await?;
+        let flush_failed = self.flush().await.is_err();
 
         let guard = self.io_lock.lock().await;
-        let raw = Self::collect_range(query).await;
+        let (raw, observed, warnings) = Self::collect_range(query).await;
         drop(guard);
 
-        Ok(finalize_result(raw, query))
+        let mut result = finalize_result(raw, query);
+        result.warnings.extend(warnings);
+        result.warnings.extend(self.warnings.lock().iter().cloned());
+        if flush_failed {
+            result.warnings.push("storage_failed".to_owned());
+        }
+        fill_time_buckets(&mut result, query, &observed);
+        result.warnings.sort();
+        result.warnings.dedup();
+        Ok(result)
     }
 
     /// 把查询结果导出成 xlsx 写到 `path`。
     pub async fn export(&self, query: &TrafficStatsQuery, path: &str, labels: &ExportLabels) -> Result<()> {
-        let result = self.query(query).await?;
-        let workbook = build_export_workbook(&result, labels)?;
+        let mut full_query = query.clone();
+        full_query.top_n = None;
+        let result = self.query(&full_query).await?;
+        if result
+            .warnings
+            .iter()
+            .any(|warning| warning == "storage_failed" || warning == "read_failed")
+        {
+            bail!("Statistics could not be read completely; export cancelled");
+        }
+        let workbook = build_export_workbook(&result, labels, query.metric)?;
         tokio::fs::write(path, workbook).await?;
         Ok(())
     }
 
     /// 读取时间范围内所有日文件，聚合成 `桶起点 -> key -> 流量`。
-    async fn collect_range(query: &TrafficStatsQuery) -> HashMap<i64, DimensionMap> {
+    async fn collect_range(query: &TrafficStatsQuery) -> (HashMap<i64, DimensionMap>, HashSet<i64>, Vec<String>) {
         let mut aggregated: HashMap<i64, DimensionMap> = HashMap::new();
+        let mut observed = HashSet::new();
+        let mut warnings = Vec::new();
 
         let Some(start_date) = timestamp_ms_to_local_date(query.start_ms) else {
-            return aggregated;
+            return (aggregated, observed, warnings);
         };
         let Some(end_date) = timestamp_ms_to_local_date(query.end_ms) else {
-            return aggregated;
+            return (aggregated, observed, warnings);
         };
 
         let mut date = start_date;
         while date <= end_date {
             if let Ok(path) = Self::day_file_path(date) {
-                if let Some(day) = Self::read_day_file(&path).await {
-                    merge_day_into(&mut aggregated, &day, date, query);
+                match tokio::fs::read(&path).await {
+                    Ok(raw) => match decode_day_file(&raw) {
+                        Ok(Some(day)) => {
+                            for (hour, bucket) in &day.buckets {
+                                if let Some(ts) = local_bucket_ts_ms(date, *hour) {
+                                    if ts < query.start_ms || ts >= query.end_ms {
+                                        continue;
+                                    }
+                                    if bucket.observed || !bucket.is_empty() {
+                                        observed.insert(ts);
+                                    }
+                                    if bucket.map(query.dimension).contains_key(OTHER_KEY) {
+                                        warnings.push("legacy_aggregated".to_owned());
+                                    }
+                                }
+                            }
+                            merge_day_into(&mut aggregated, &day, date, query);
+                        }
+                        Ok(None) => warnings.push("legacy_data".to_owned()),
+                        Err(_) => warnings.push("read_failed".to_owned()),
+                    },
+                    Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(_) => warnings.push("read_failed".to_owned()),
                 }
             }
             let Some(next) = date.succ_opt() else { break };
             date = next;
         }
 
-        aggregated
+        (aggregated, observed, warnings)
     }
+}
+
+fn decode_day_file(raw: &[u8]) -> Result<Option<DayFile>> {
+    let value: serde_json::Value = serde_json::from_slice(raw)?;
+    if value.get("v").and_then(serde_json::Value::as_u64) != Some(u64::from(STATS_FILE_VERSION)) {
+        return Ok(None);
+    }
+    Ok(Some(serde_json::from_value(value)?))
 }
 
 /// 把一天的数据按查询条件并入聚合结果。
@@ -949,18 +1083,77 @@ fn merge_day_into(
 ///
 /// 合计由**截断后的各桶**再聚合得出，保证「合计 == 各桶之和」，
 /// 也避免磁盘上已存在的 [`OTHER_KEY`] 与本次合并项撞成两条同名记录。
-fn finalize_result(aggregated: HashMap<i64, DimensionMap>, query: &TrafficStatsQuery) -> TrafficStatsResult {
+fn finalize_result(mut aggregated: HashMap<i64, DimensionMap>, query: &TrafficStatsQuery) -> TrafficStatsResult {
+    let mut groups = HashSet::new();
+    for map in aggregated.values() {
+        for key in map.keys() {
+            let (name, group, _) = split_key(key);
+            let candidate = if query.dimension == StatsDimension::Group {
+                Some(name)
+            } else {
+                group
+            };
+            if let Some(group) = candidate.filter(|group| *group != OTHER_KEY && *group != UNATTRIBUTED_KEY) {
+                groups.insert(group.to_owned());
+            }
+        }
+    }
+    let search = query.search.trim().to_lowercase();
+    for map in aggregated.values_mut() {
+        let raw = std::mem::take(map);
+        for (key, pair) in raw {
+            let (name, group, process) = split_key(&key);
+            let entry_group = if query.dimension == StatsDimension::Group {
+                Some(name)
+            } else {
+                group
+            };
+            if !query.groups.is_empty()
+                && !entry_group.is_some_and(|g| query.groups.iter().any(|selected| selected == g))
+            {
+                continue;
+            }
+            if !search.is_empty()
+                && ![Some(name), group, process]
+                    .iter()
+                    .flatten()
+                    .any(|text| text.to_lowercase().contains(&search))
+            {
+                continue;
+            }
+            let target = if query.aggregate { name.to_owned() } else { key };
+            map.entry(target).or_default().add(pair.up(), pair.down());
+        }
+    }
     let mut totals: DimensionMap = HashMap::new();
     for bucket in aggregated.values() {
         merge_map(&mut totals, bucket);
     }
 
     let mut ranked: Vec<(String, TrafficPair)> = totals.into_iter().collect();
-    ranked.sort_by(|left, right| right.1.total().cmp(&left.1.total()).then_with(|| left.0.cmp(&right.0)));
+    ranked.sort_by(|left, right| {
+        query
+            .metric
+            .value(right.1)
+            .cmp(&query.metric.value(left.1))
+            .then_with(|| left.0.cmp(&right.0))
+    });
 
     let limit = query.top_n.unwrap_or(usize::MAX);
-    let truncated = ranked.len() > limit;
-    let kept: HashSet<String> = ranked.into_iter().take(limit).map(|(key, _)| key).collect();
+    let specials: HashSet<String> = ranked
+        .iter()
+        .filter(|(key, _)| is_special(key))
+        .map(|(key, _)| key.clone())
+        .collect();
+    let ordinary = ranked.iter().filter(|(key, _)| !is_special(key)).count();
+    let truncated = ordinary > limit;
+    let mut kept: HashSet<String> = ranked
+        .into_iter()
+        .filter(|(key, _)| !is_special(key))
+        .take(limit)
+        .map(|(key, _)| key)
+        .collect();
+    kept.extend(specials);
 
     let mut recomputed: DimensionMap = HashMap::new();
     let mut buckets: Vec<TrafficStatsBucket> = aggregated
@@ -971,16 +1164,76 @@ fn finalize_result(aggregated: HashMap<i64, DimensionMap>, query: &TrafficStatsQ
             TrafficStatsBucket {
                 ts,
                 items: to_sorted_entries(folded),
+                observed: true,
             }
         })
         .collect();
     buckets.sort_by_key(|bucket| bucket.ts);
 
+    let mut totals = to_sorted_entries(recomputed);
+    totals.sort_by(|left, right| {
+        query
+            .metric
+            .value(TrafficPair(right.up, right.down))
+            .cmp(&query.metric.value(TrafficPair(left.up, left.down)))
+            .then_with(|| left.key.cmp(&right.key))
+    });
+    let mut groups: Vec<String> = groups.into_iter().collect();
+    groups.sort();
     TrafficStatsResult {
         granularity: query.granularity,
         buckets,
-        totals: to_sorted_entries(recomputed),
+        totals,
         truncated,
+        groups,
+        warnings: Vec::new(),
+    }
+}
+
+fn is_special(key: &str) -> bool {
+    matches!(split_key(key).0, OTHER_KEY | UNKNOWN_KEY | UNATTRIBUTED_KEY)
+}
+
+fn fill_time_buckets(result: &mut TrafficStatsResult, query: &TrafficStatsQuery, observed_hours: &HashSet<i64>) {
+    let end = query.end_ms.min(Local::now().timestamp_millis().saturating_add(1));
+    let Some(mut date) = timestamp_ms_to_local_date(query.start_ms) else {
+        return;
+    };
+    let Some(end_date) = timestamp_ms_to_local_date(end) else {
+        return;
+    };
+    let mut buckets: HashMap<i64, TrafficStatsBucket> = std::mem::take(&mut result.buckets)
+        .into_iter()
+        .map(|bucket| (bucket.ts, bucket))
+        .collect();
+    let mut missing_observations = false;
+    while date <= end_date {
+        for hour in 0..24 {
+            let Some(ts) = local_bucket_ts_ms(date, hour) else {
+                continue;
+            };
+            if ts < query.start_ms || ts >= end {
+                continue;
+            }
+            missing_observations |= !observed_hours.contains(&ts);
+            let slot = match query.granularity {
+                StatsGranularity::Hour => ts,
+                StatsGranularity::Day => local_bucket_ts_ms(date, 0).unwrap_or(ts),
+            };
+            let bucket = buckets.entry(slot).or_insert_with(|| TrafficStatsBucket {
+                ts: slot,
+                items: Vec::new(),
+                observed: false,
+            });
+            bucket.observed |= observed_hours.contains(&ts);
+        }
+        let Some(next) = date.succ_opt() else { break };
+        date = next;
+    }
+    result.buckets = buckets.into_values().collect();
+    result.buckets.sort_by_key(|bucket| bucket.ts);
+    if missing_observations {
+        result.warnings.push("sampling_gaps".to_owned());
     }
 }
 
@@ -1029,7 +1282,7 @@ fn to_sorted_entries(map: DimensionMap) -> Vec<TrafficStatsEntry> {
 
 /// 聚合项（其他/未归因/未知）在导出里换成人话，其余用原名。
 fn export_name<'a>(entry: &'a TrafficStatsEntry, labels: &'a ExportLabels) -> &'a str {
-    match entry.key.as_str() {
+    match entry.name.as_str() {
         key if key == OTHER_KEY => &labels.other,
         key if key == UNATTRIBUTED_KEY => &labels.unattributed,
         key if key == UNKNOWN_KEY => &labels.unknown,
@@ -1070,11 +1323,11 @@ fn format_bucket_time(ts_ms: i64, granularity: StatsGranularity) -> String {
 /// 两张表：「汇总」按名称合计，「明细」按时间桶展开。
 ///
 /// 字节数一律写成数值而非格式化文本，Excel 里才能直接求和、排序、做图。
-fn build_export_workbook(result: &TrafficStatsResult, labels: &ExportLabels) -> Result<Vec<u8>> {
+fn build_export_workbook(result: &TrafficStatsResult, labels: &ExportLabels, metric: StatsMetric) -> Result<Vec<u8>> {
     let grand_total: u64 = result
         .totals
         .iter()
-        .map(|entry| entry.up.saturating_add(entry.down))
+        .map(|entry| metric.value(TrafficPair(entry.up, entry.down)))
         .sum();
 
     let mut summary = vec![vec![
@@ -1086,12 +1339,27 @@ fn build_export_workbook(result: &TrafficStatsResult, labels: &ExportLabels) -> 
         Cell::text(labels.total.as_str()),
         Cell::text(labels.share.as_str()),
     ]];
+    let mut context = vec![labels.context.clone()];
+    context.extend(
+        result
+            .warnings
+            .iter()
+            .map(|warning| labels.warning_labels.get(warning).unwrap_or(warning).clone()),
+    );
+    let context = context
+        .into_iter()
+        .filter(|text| !text.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
+    if !context.is_empty() {
+        summary.insert(0, vec![Cell::text(context)]);
+    }
     for entry in &result.totals {
         let total = entry.up.saturating_add(entry.down);
         let share = if grand_total == 0 {
             0.0
         } else {
-            (total as f64) / (grand_total as f64) * 100.0
+            (metric.value(TrafficPair(entry.up, entry.down)) as f64) / (grand_total as f64) * 100.0
         };
         summary.push(vec![
             Cell::text(export_name(entry, labels)),
@@ -1157,6 +1425,141 @@ fn timestamp_ms_to_local_date(ms: i64) -> Option<NaiveDate> {
 mod tests {
     use super::*;
     use crate::utils::connections_stream::ConnectionSample;
+
+    #[test]
+    fn session_baseline_and_clear_never_recount_existing_connections() {
+        let mut acc = Accumulator::default();
+        let settings = StatsSettings::default();
+        acc.ingest(snapshot(vec![sample("a", 100, 200)], 100, 200), settings, date(), 9);
+        assert_eq!(host_pair(&acc, 9, &default_host_key()), TrafficPair::default());
+        acc.ingest(snapshot(vec![sample("a", 130, 250)], 130, 250), settings, date(), 9);
+        assert_eq!(host_pair(&acc, 9, &default_host_key()), TrafficPair(30, 50));
+        acc.reset_baseline();
+        acc.ingest(snapshot(vec![sample("a", 130, 250)], 130, 250), settings, date(), 9);
+        assert_eq!(host_pair(&acc, 9, &default_host_key()), TrafficPair(30, 50));
+        acc.reset_all();
+        acc.ingest(snapshot(vec![sample("a", 130, 250)], 130, 250), settings, date(), 9);
+        acc.ingest(snapshot(vec![sample("a", 140, 260)], 140, 260), settings, date(), 9);
+        assert_eq!(host_pair(&acc, 9, &default_host_key()), TrafficPair(10, 10));
+    }
+
+    #[test]
+    fn zero_traffic_samples_still_mark_hour_observed() {
+        let mut acc = Accumulator::default();
+        acc.ingest(snapshot(vec![], 0, 0), StatsSettings::default(), date(), 9);
+        assert!(acc.pending[&date()][&9].observed);
+    }
+
+    #[test]
+    fn legacy_versions_are_distinguished_from_corrupt_current_data() {
+        assert!(decode_day_file(br#"{"v":2}"#).unwrap().is_none());
+        assert!(decode_day_file(br#"{"v":999}"#).unwrap().is_none());
+        assert!(decode_day_file(br#"{"v":3}"#).is_err());
+        assert!(decode_day_file(b"broken json").is_err());
+        let legacy_v3 = br#"{"v":3,"date":"2026-08-03","tz_offset_min":480,"buckets":{"9":{"host":{"a.com":[1,2]}}}}"#;
+        let day = decode_day_file(legacy_v3).unwrap().unwrap();
+        assert_eq!(day.buckets[&9].host["a.com"], TrafficPair(1, 2));
+    }
+
+    #[test]
+    fn query_defaults_accept_previous_client_payload() {
+        let q: TrafficStatsQuery =
+            serde_json::from_str(r#"{"dimension":"host","startMs":0,"endMs":1,"granularity":"hour"}"#).unwrap();
+        assert!(q.groups.is_empty());
+        assert!(q.search.is_empty());
+        assert!(!q.aggregate);
+        assert!(matches!(q.metric, StatsMetric::Total));
+    }
+
+    #[test]
+    fn disabled_process_recording_removes_process_from_host_key() {
+        let mut acc = ready_accumulator();
+        let settings = StatsSettings {
+            record_process: false,
+            ..Default::default()
+        };
+        acc.ingest(snapshot(vec![sample("a", 100, 0)], 100, 0), settings, date(), 9);
+        assert_eq!(host_pair(&acc, 9, &compose_key(HOST, GROUP)), TrafficPair(100, 0));
+        assert!(acc.pending[&date()][&9].process.is_empty());
+    }
+
+    #[test]
+    fn unknown_process_keeps_known_group() {
+        let mut acc = ready_accumulator();
+        let mut conn = sample("a", 100, 0);
+        conn.process = None;
+        acc.ingest(snapshot(vec![conn], 100, 0), StatsSettings::default(), date(), 9);
+        assert_eq!(
+            acc.pending[&date()][&9].process[&compose_key(UNKNOWN_KEY, GROUP)],
+            TrafficPair(100, 0)
+        );
+    }
+
+    #[test]
+    fn filter_then_aggregate_then_rank_by_selected_metric() {
+        let mut map = DimensionMap::new();
+        map.insert(compose_three_part_key("same.com", "Proxy", "a"), TrafficPair(20, 0));
+        map.insert(compose_three_part_key("same.com", "Proxy", "b"), TrafficPair(30, 0));
+        map.insert(
+            compose_three_part_key("download.com", "Proxy", "b"),
+            TrafficPair(1, 1000),
+        );
+        map.insert(
+            compose_three_part_key("excluded.com", "DIRECT", "b"),
+            TrafficPair(9999, 0),
+        );
+        map.insert(UNATTRIBUTED_KEY.to_owned(), TrafficPair(10, 0));
+        let mut q = query(Some(1));
+        q.aggregate = true;
+        q.metric = StatsMetric::Up;
+        q.groups = vec!["Proxy".to_owned()];
+        let result = finalize_result(HashMap::from([(0, map)]), &q);
+        assert_eq!(result.totals[0].name, "same.com");
+        assert_eq!(result.totals[0].up, 50);
+        assert_eq!(result.totals.iter().map(|entry| entry.up).sum::<u64>(), 51);
+        assert!(result.groups.contains(&"DIRECT".to_owned()));
+        assert!(result.groups.contains(&"Proxy".to_owned()));
+    }
+
+    #[test]
+    fn special_entries_survive_top_n_and_search_checks_process_path() {
+        let map = DimensionMap::from([
+            (
+                compose_three_part_key("a.com", "Proxy", r"C:\Apps\app.exe"),
+                TrafficPair(100, 0),
+            ),
+            (UNATTRIBUTED_KEY.to_owned(), TrafficPair(1, 0)),
+            (UNKNOWN_KEY.to_owned(), TrafficPair(1, 0)),
+        ]);
+        let mut q = query(Some(1));
+        let result = finalize_result(HashMap::from([(0, map.clone())]), &q);
+        assert_eq!(result.totals.len(), 3);
+        q.search = "APP.EXE".to_owned();
+        let result = finalize_result(HashMap::from([(0, map)]), &q);
+        assert_eq!(result.totals.len(), 1);
+        assert_eq!(result.totals[0].name, "a.com");
+    }
+
+    #[test]
+    fn timeline_preserves_missing_observations() {
+        let start = local_bucket_ts_ms(date(), 0).unwrap();
+        let mut q = query(None);
+        q.start_ms = start;
+        q.end_ms = start + 3 * 3600 * 1000;
+        let mut result = finalize_result(HashMap::new(), &q);
+        fill_time_buckets(&mut result, &q, &HashSet::from([start]));
+        assert_eq!(result.buckets.len(), 3);
+        assert!(result.buckets[0].observed);
+        assert!(!result.buckets[1].observed);
+        assert!(result.warnings.contains(&"sampling_gaps".to_owned()));
+    }
+
+    fn ready_accumulator() -> Accumulator {
+        Accumulator {
+            last_totals: Some(TrafficPair(0, 0)),
+            ..Default::default()
+        }
+    }
 
     const GROUP: &str = "Proxy";
     const HOST: &str = "example.com";
@@ -1228,7 +1631,7 @@ mod tests {
     #[test]
     fn same_host_different_groups_split_into_two_rows() {
         let settings = StatsSettings::default();
-        let mut acc = Accumulator::default();
+        let mut acc = ready_accumulator();
 
         let mut via_proxy = sample("a", 100, 0);
         via_proxy.group = Some("Proxy".to_owned());
@@ -1251,7 +1654,7 @@ mod tests {
     #[test]
     fn missing_group_keeps_name_with_unknown_group() {
         let settings = StatsSettings::default();
-        let mut acc = Accumulator::default();
+        let mut acc = ready_accumulator();
         let mut conn = sample("a", 100, 0);
         conn.group = None;
         acc.ingest(snapshot(vec![conn], 100, 0), settings, date(), 9);
@@ -1267,7 +1670,7 @@ mod tests {
     /// 首次见到的连接把已累计的全量计入。
     #[test]
     fn first_sight_counts_full_value() {
-        let mut acc = Accumulator::default();
+        let mut acc = ready_accumulator();
         acc.ingest(
             snapshot(vec![sample("a", 100, 200)], 100, 200),
             StatsSettings::default(),
@@ -1282,7 +1685,7 @@ mod tests {
     #[test]
     fn growing_connection_counts_delta_only() {
         let settings = StatsSettings::default();
-        let mut acc = Accumulator::default();
+        let mut acc = ready_accumulator();
         acc.ingest(snapshot(vec![sample("a", 100, 200)], 100, 200), settings, date(), 9);
         acc.ingest(snapshot(vec![sample("a", 150, 260)], 150, 260), settings, date(), 9);
 
@@ -1293,7 +1696,7 @@ mod tests {
     #[test]
     fn counter_reset_does_not_go_negative() {
         let settings = StatsSettings::default();
-        let mut acc = Accumulator::default();
+        let mut acc = ready_accumulator();
         acc.ingest(snapshot(vec![sample("a", 500, 500)], 500, 500), settings, date(), 9);
         // 内核重启：同 id 的新连接累计值归零，全局总量也回退。
         acc.ingest(snapshot(vec![sample("a", 10, 10)], 10, 10), settings, date(), 9);
@@ -1306,7 +1709,7 @@ mod tests {
     #[test]
     fn closed_connection_stops_accumulating() {
         let settings = StatsSettings::default();
-        let mut acc = Accumulator::default();
+        let mut acc = ready_accumulator();
         acc.ingest(snapshot(vec![sample("a", 100, 100)], 100, 100), settings, date(), 9);
         acc.ingest(snapshot(vec![], 100, 100), settings, date(), 9);
 
@@ -1318,7 +1721,7 @@ mod tests {
     #[test]
     fn hour_rollover_splits_buckets() {
         let settings = StatsSettings::default();
-        let mut acc = Accumulator::default();
+        let mut acc = ready_accumulator();
         acc.ingest(snapshot(vec![sample("a", 100, 0)], 100, 0), settings, date(), 9);
         acc.ingest(snapshot(vec![sample("a", 180, 0)], 180, 0), settings, date(), 10);
 
@@ -1330,7 +1733,7 @@ mod tests {
     #[test]
     fn residual_goes_to_unattributed() {
         let settings = StatsSettings::default();
-        let mut acc = Accumulator::default();
+        let mut acc = ready_accumulator();
         acc.ingest(snapshot(vec![sample("a", 100, 0)], 100, 0), settings, date(), 9);
         // 全局涨了 100，但只有 40 能归因到活动连接（60 属于已关闭连接的尾部）。
         acc.ingest(snapshot(vec![sample("a", 140, 0)], 200, 0), settings, date(), 9);
@@ -1343,12 +1746,15 @@ mod tests {
     #[test]
     fn missing_field_goes_to_unknown_not_unattributed() {
         let settings = StatsSettings::default();
-        let mut acc = Accumulator::default();
+        let mut acc = ready_accumulator();
         let mut conn = sample("a", 100, 0);
         conn.host = None;
         acc.ingest(snapshot(vec![conn], 100, 0), settings, date(), 9);
 
-        assert_eq!(host_pair(&acc, 9, UNKNOWN_KEY), TrafficPair(100, 0));
+        assert_eq!(
+            host_pair(&acc, 9, &compose_three_part_key(UNKNOWN_KEY, GROUP, PROC)),
+            TrafficPair(100, 0)
+        );
         assert_eq!(host_pair(&acc, 9, UNATTRIBUTED_KEY), TrafficPair::default());
     }
 
@@ -1360,7 +1766,7 @@ mod tests {
             record_process: true,
             ..StatsSettings::default()
         };
-        let mut acc = Accumulator::default();
+        let mut acc = ready_accumulator();
         acc.ingest(snapshot(vec![sample("a", 100, 0)], 100, 0), settings, date(), 9);
 
         let buckets = acc
@@ -1433,12 +1839,8 @@ mod tests {
         buckets
             .host
             .insert(compose_three_part_key(HOST, GROUP, PROC), TrafficPair(1, 2));
-        buckets
-            .process
-            .insert(compose_key(PROC, GROUP), TrafficPair(3, 4));
-        buckets
-            .group
-            .insert(GROUP.to_owned(), TrafficPair(5, 6));
+        buckets.process.insert(compose_key(PROC, GROUP), TrafficPair(3, 4));
+        buckets.group.insert(GROUP.to_owned(), TrafficPair(5, 6));
         day.buckets.insert(9, buckets);
 
         let raw = serde_json::to_vec(&day).expect("serialize");
@@ -1496,6 +1898,10 @@ mod tests {
             end_ms: 1,
             granularity: StatsGranularity::Hour,
             top_n,
+            groups: Vec::new(),
+            metric: StatsMetric::Total,
+            search: String::new(),
+            aggregate: false,
         }
     }
 
@@ -1504,10 +1910,7 @@ mod tests {
     fn finalize_splits_name_and_group() {
         let mut aggregated: HashMap<i64, DimensionMap> = HashMap::new();
         let mut bucket: DimensionMap = HashMap::new();
-        bucket.insert(
-            compose_three_part_key("a.com", "Proxy", "curl"),
-            TrafficPair(100, 0),
-        );
+        bucket.insert(compose_three_part_key("a.com", "Proxy", "curl"), TrafficPair(100, 0));
         bucket.insert(UNATTRIBUTED_KEY.to_owned(), TrafficPair(1, 0));
         aggregated.insert(0, bucket);
 
@@ -1533,33 +1936,17 @@ mod tests {
     fn finalize_applies_top_n() {
         let mut aggregated: HashMap<i64, DimensionMap> = HashMap::new();
         let mut bucket: DimensionMap = HashMap::new();
-        bucket.insert(
-            compose_three_part_key("a.com", "Proxy", "curl"),
-            TrafficPair(100, 0),
-        );
-        bucket.insert(
-            compose_three_part_key("b.com", "Proxy", "curl"),
-            TrafficPair(50, 0),
-        );
-        bucket.insert(
-            compose_three_part_key("c.com", "Proxy", "curl"),
-            TrafficPair(10, 0),
-        );
+        bucket.insert(compose_three_part_key("a.com", "Proxy", "curl"), TrafficPair(100, 0));
+        bucket.insert(compose_three_part_key("b.com", "Proxy", "curl"), TrafficPair(50, 0));
+        bucket.insert(compose_three_part_key("c.com", "Proxy", "curl"), TrafficPair(10, 0));
         aggregated.insert(0, bucket);
 
         let result = finalize_result(aggregated, &query(Some(2)));
 
         assert!(result.truncated);
-        let total: u64 = result
-            .totals
-            .iter()
-            .map(|entry| entry.up + entry.down)
-            .sum();
+        let total: u64 = result.totals.iter().map(|entry| entry.up + entry.down).sum();
         assert_eq!(total, 160);
-        assert_eq!(
-            result.totals.first().map(|entry| entry.name.as_str()),
-            Some("a.com")
-        );
+        assert_eq!(result.totals.first().map(|entry| entry.name.as_str()), Some("a.com"));
         assert!(result.totals.iter().any(|entry| entry.key == OTHER_KEY));
     }
 
@@ -1568,10 +1955,7 @@ mod tests {
     fn finalize_without_truncation() {
         let mut aggregated: HashMap<i64, DimensionMap> = HashMap::new();
         let mut bucket: DimensionMap = HashMap::new();
-        bucket.insert(
-            compose_three_part_key("a.com", "Proxy", "curl"),
-            TrafficPair(100, 1),
-        );
+        bucket.insert(compose_three_part_key("a.com", "Proxy", "curl"), TrafficPair(100, 1));
         aggregated.insert(0, bucket);
 
         let result = finalize_result(aggregated, &query(Some(5)));

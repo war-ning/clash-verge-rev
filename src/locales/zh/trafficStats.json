@@ -6,11 +6,12 @@
   "ranges": {
     "today": "今天",
     "week": "近 7 天",
-    "month": "近 30 天"
+    "month": "近 30 天",
+    "custom": "自定义日期"
   },
   "dimensions": {
     "host": "域名",
-    "process": "进程",
+    "process": "应用／进程",
     "group": "策略组"
   },
   "metrics": {
@@ -25,19 +26,40 @@
     "up": "上行",
     "down": "下行",
     "total": "合计",
-    "share": "占比"
+    "share": "占比",
+    "copyName": "复制完整名称",
+    "copyProcessPath": "复制进程路径",
+    "processUnavailable": "未获取到进程信息"
   },
   "filter": {
     "group": "策略组",
-    "all": "全部"
+    "all": "全部",
+    "allGroups": "全部策略组",
+    "selectAll": "全选",
+    "reset": "重置策略组",
+    "range": "时间范围",
+    "dimension": "统计维度",
+    "metric": "流量指标",
+    "view": "展示方式",
+    "summary": "对象汇总",
+    "detail": "组合明细",
+    "search": "搜索名称、路径或策略组",
+    "startDate": "开始日期",
+    "endDate": "结束日期",
+    "apply": "应用日期",
+    "invalidRange": "请选择不超过 366 天的范围，结束日期不能晚于今天。"
   },
   "keys": {
-    "other": "其他",
-    "unattributed": "未归因",
-    "unknown": "未知"
+    "other": "其余合并项",
+    "unattributed": "无法归因的流量",
+    "unknown": "信息缺失",
+    "unknownProcess": "未识别进程",
+    "unknownHost": "未识别目标",
+    "unknownGroup": "未识别策略组"
   },
   "actions": {
-    "export": "导出"
+    "export": "导出",
+    "showAll": "查看全部匹配项"
   },
   "export": {
     "summarySheet": "汇总",
@@ -56,8 +78,32 @@
     "done": "已清空流量统计"
   },
   "notes": {
-    "accuracy": "连接约每秒采样一次，连接关闭前最后一刻的流量无法归因到具体域名/进程，计入「未归因」。",
-    "disabled": "流量统计采集已关闭，可在「设置 → 高级」中开启。"
+    "accuracy": "连接详情约每秒采样一次，短连接、关闭前尾部流量及采样中断可能无法归因。斜纹时段表示没有采样记录；有采样的日期内也可能存在中断。重新连接时从新基线开始统计。",
+    "disabled": "流量统计采集已关闭，可在「设置 → 高级」中开启。",
+    "scope": "包含内核接管的流量（含直连），不等同于机场账单流量。",
+    "manualRefresh": "当前为查询快照，点击刷新更新。",
+    "summary": "按目标或进程身份汇总；切换“组合明细”可查看策略组及进程。",
+    "detail": "按目标／进程与策略组组合拆分，每行代表一组明细。",
+    "loading": "正在加载流量统计",
+    "loadError": "统计加载失败。",
+    "dimensionDisabled": "此维度的采集已关闭。仍可查看已有历史，可在“设置 → 高级”中开启采集。",
+    "incomplete": "部分统计数据可能不完整。",
+    "categories": "未识别：连接已知，但缺少目标或进程信息。未归因：有流量但没有采样到对应连接详情。其他：为展示合并的记录，或旧历史中已永久合并的明细。",
+    "topN": "当前显示前 50 个匹配项及特殊分类，其余合并展示。导出包含全部已保存的匹配记录。"
   },
-  "empty": "该时间段内暂无流量记录"
+  "empty": "该时间段内暂无流量记录",
+  "warnings": {
+    "storage_failed": "最近数据保存失败，已保留在内存中等待重试。",
+    "read_failed": "部分历史文件无法读取。",
+    "legacy_data": "已跳过不支持的旧版历史文件。",
+    "legacy_aggregated": "旧历史中存在已永久合并、无法恢复的明细。",
+    "sampling_gaps": "部分时段没有采样记录。"
+  },
+  "chart": {
+    "legend": "流量分类",
+    "description": "流量趋势，可使用左右方向键查看各时间段。",
+    "notObserved": "无采样记录",
+    "total": "本时段合计"
+  },
+  "noMatches": "没有匹配的记录，请尝试重置策略组或清空搜索。"
 }

@@ -6,7 +6,8 @@
   "ranges": {
     "today": "Hoy",
     "week": "Últimos 7 días",
-    "month": "Últimos 30 días"
+    "month": "Últimos 30 días",
+    "custom": "Custom dates"
   },
   "dimensions": {
     "host": "Dominio",
@@ -25,15 +26,22 @@
     "down": "Bajada",
     "total": "Total",
     "share": "Porcentaje",
-    "process": "Process"
+    "process": "Process",
+    "copyName": "Copy full name",
+    "copyProcessPath": "Copy process path",
+    "processUnavailable": "Process information unavailable"
   },
   "keys": {
     "other": "Otros",
     "unattributed": "Sin atribuir",
-    "unknown": "Desconocido"
+    "unknown": "Desconocido",
+    "unknownProcess": "Unidentified process",
+    "unknownHost": "Unidentified destination",
+    "unknownGroup": "Unidentified group"
   },
   "actions": {
-    "export": "Exportar"
+    "export": "Exportar",
+    "showAll": "Show all matches"
   },
   "export": {
     "summarySheet": "Resumen",
@@ -53,11 +61,49 @@
   },
   "notes": {
     "accuracy": "Las conexiones se muestrean aproximadamente una vez por segundo. El tráfico del último instante antes de cerrarse una conexión no puede atribuirse a un dominio o proceso concreto y se cuenta como «Sin atribuir».",
-    "disabled": "La recopilación de estadísticas de tráfico está desactivada. Actívala en Ajustes → Avanzado."
+    "disabled": "La recopilación de estadísticas de tráfico está desactivada. Actívala en Ajustes → Avanzado.",
+    "scope": "Includes traffic handled by the core, including DIRECT. This is not a provider billing total.",
+    "manualRefresh": "Refresh to update this snapshot.",
+    "summary": "Grouped by destination or process identity. Switch to Details to see strategy groups and processes.",
+    "detail": "Each row identifies a destination/process and its strategy group.",
+    "loading": "Loading traffic statistics",
+    "loadError": "Unable to load statistics.",
+    "dimensionDisabled": "Collection for this dimension is disabled. Existing history remains available; enable collection in Settings → Advanced.",
+    "incomplete": "Some statistics may be incomplete.",
+    "categories": "Unidentified: a connection is known but a field is missing. Unattributed: traffic with no sampled connection details. Other: rows combined for display, or details already merged in older history.",
+    "topN": "Showing the top 50 matches plus diagnostic categories. Remaining rows are combined. Export includes all matching saved rows."
   },
   "empty": "No hay tráfico registrado en este periodo",
   "filter": {
     "group": "Group",
-    "all": "All"
-  }
+    "all": "All",
+    "allGroups": "All strategy groups",
+    "selectAll": "Select all",
+    "reset": "Reset groups",
+    "range": "Date range",
+    "dimension": "Dimension",
+    "metric": "Traffic metric",
+    "view": "View",
+    "summary": "Summary",
+    "detail": "Details",
+    "search": "Search name, path or group",
+    "startDate": "Start date",
+    "endDate": "End date",
+    "apply": "Apply dates",
+    "invalidRange": "Choose up to 366 days, ending no later than today."
+  },
+  "warnings": {
+    "storage_failed": "Recent data could not be saved; retry later.",
+    "read_failed": "Some history files could not be read.",
+    "legacy_data": "Unsupported older history was skipped.",
+    "legacy_aggregated": "Older history contains permanently merged details.",
+    "sampling_gaps": "Some periods have no recorded samples."
+  },
+  "chart": {
+    "legend": "Traffic categories",
+    "description": "Traffic over time. Use the left and right arrow keys to inspect periods.",
+    "notObserved": "No recorded samples",
+    "total": "Period total"
+  },
+  "noMatches": "No matching records. Try resetting groups or clearing the search."
 }

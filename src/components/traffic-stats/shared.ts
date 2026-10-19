@@ -8,7 +8,8 @@ export type TrafficMetric = 'total' | 'up' | 'down'
 
 const AGGREGATE_KEYS = new Set([OTHER_KEY, UNATTRIBUTED_KEY, UNKNOWN_KEY])
 
-export const isAggregateKey = (key: string) => AGGREGATE_KEYS.has(key)
+export const isAggregateKey = (key: string) =>
+  AGGREGATE_KEYS.has(key.split('\u0001')[0])
 
 export const metricValue = (
   entry: { up: number; down: number },

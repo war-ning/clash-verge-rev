@@ -402,7 +402,7 @@
       },
       "tooltips": {
         "recordHost": "Visited domains are written to disk. Turn this off if you would rather not keep them.",
-        "recordProcess": "Requires find-process-mode to be enabled in the core, otherwise this stays empty."
+        "recordProcess": "Save process names and available paths, including destination details. Identification depends on the core; shared host processes may not identify an individual app."
       }
     },
     "misc": {

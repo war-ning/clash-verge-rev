@@ -1,8 +1,21 @@
-import { ArrowDownwardRounded, ArrowUpwardRounded } from '@mui/icons-material'
-import { Box, Typography, useTheme } from '@mui/material'
+import { ArrowDownwardRounded, ContentCopyRounded } from '@mui/icons-material'
+import {
+  Box,
+  IconButton,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TableSortLabel,
+  Typography,
+} from '@mui/material'
+import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { showNotice } from '@/services/notice-service'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
 import parseTraffic from '@/utils/parse-traffic'
 
@@ -12,13 +25,13 @@ type SortField = 'name' | 'group' | 'process' | 'up' | 'down' | 'total'
 
 interface Props {
   entries: ITrafficStatsEntry[]
-  /** 聚合项要换成人话，其余用原名 */
   displayName: (entry: ITrafficStatsEntry) => string
   displayGroup: (entry: ITrafficStatsEntry) => string
   displayProcess?: (entry: ITrafficStatsEntry) => string
   colorOf: (key: string) => string
   metric: TrafficMetric
   showProcessColumn?: boolean
+  showGroupColumn?: boolean
 }
 
 const formatBytes = (value: number) => parseTraffic(value).join(' ')
@@ -31,242 +44,269 @@ export const StatsTable = ({
   colorOf,
   metric,
   showProcessColumn,
+  showGroupColumn = true,
 }: Props) => {
-  const gridColumns = showProcessColumn
-    ? '36px minmax(140px, 1.6fr) minmax(90px, 0.9fr) minmax(90px, 0.9fr) 100px 100px 100px 60px'
-    : '36px minmax(140px, 1.6fr) minmax(90px, 0.9fr) 100px 100px 100px 60px'
   const { t } = useTranslation()
-  const theme = useTheme()
-  const [sort, setSort] = useState<{ field: SortField; desc: boolean }>({
-    field: 'total',
-    desc: true,
-  })
-
+  // An explicit sort survives metric changes; otherwise ranking follows the selected metric.
+  const [manualSort, setManualSort] = useState<{
+    field: SortField
+    desc: boolean
+  } | null>(null)
+  const sort = manualSort ?? { field: metric, desc: true }
   const sorted = useMemo(() => {
-    const compareText = (left: string, right: string) =>
-      left.localeCompare(right)
-    const compare = (left: ITrafficStatsEntry, right: ITrafficStatsEntry) => {
-      if (sort.field === 'name') {
-        return compareText(displayName(left), displayName(right))
-      }
-      if (sort.field === 'group') {
-        return compareText(displayGroup(left), displayGroup(right))
-      }
-      if (sort.field === 'process') {
-        return compareText(
-          displayProcess?.(left) ?? '',
-          displayProcess?.(right) ?? '',
-        )
-      }
-      if (sort.field === 'up') return left.up - right.up
-      if (sort.field === 'down') return left.down - right.down
-      return left.up + left.down - (right.up + right.down)
+    const textOf = (entry: ITrafficStatsEntry) => {
+      if (sort.field === 'name') return displayName(entry)
+      if (sort.field === 'group') return displayGroup(entry)
+      return displayProcess?.(entry) ?? ''
     }
-
-    const next = [...entries]
-    next.sort((left, right) => {
-      const compared = compare(left, right)
+    return [...entries].sort((left, right) => {
+      const compared =
+        sort.field === 'name' ||
+        sort.field === 'group' ||
+        sort.field === 'process'
+          ? textOf(left).localeCompare(textOf(right))
+          : metricValue(left, sort.field) - metricValue(right, sort.field)
       return sort.desc ? -compared : compared
     })
-    return next
-  }, [entries, displayName, displayGroup, displayProcess, sort])
-
-  // 占比条以「当前展示口径下的最大值」为满格，视觉对比更明显
-  const peak = useMemo(
-    () =>
-      sorted.reduce(
-        (max, entry) => Math.max(max, metricValue(entry, metric)),
-        0,
-      ),
-    [sorted, metric],
-  )
+  }, [
+    entries,
+    displayName,
+    displayGroup,
+    displayProcess,
+    sort.field,
+    sort.desc,
+  ])
   const grandTotal = useMemo(
-    () => sorted.reduce((sum, entry) => sum + metricValue(entry, metric), 0),
-    [sorted, metric],
+    () => entries.reduce((sum, entry) => sum + metricValue(entry, metric), 0),
+    [entries, metric],
   )
-
-  const toggleSort = (field: SortField) => {
-    setSort((current) =>
-      current.field === field
-        ? { field, desc: !current.desc }
-        : { field, desc: field !== 'name' && field !== 'group' && field !== 'process' },
-    )
+  const copy = async (value: string) => {
+    try {
+      await writeText(value)
+    } catch (err) {
+      showNotice.error(err)
+    }
   }
-
-  const renderHeader = (
-    field: SortField,
-    labelKey: TranslationKey,
-    align: 'left' | 'right',
-  ) => (
-    <Box
-      onClick={() => toggleSort(field)}
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: align === 'right' ? 'flex-end' : 'flex-start',
-        gap: 0.3,
-        cursor: 'pointer',
-        userSelect: 'none',
-        color: sort.field === field ? 'text.primary' : 'text.secondary',
-      }}
+  const header = (field: SortField, key: TranslationKey, numeric = false) => (
+    <TableCell
+      align={numeric ? 'right' : 'left'}
+      sortDirection={
+        sort.field === field ? (sort.desc ? 'desc' : 'asc') : false
+      }
     >
-      <Typography variant="caption" sx={{ fontWeight: 600 }}>
-        {t(labelKey)}
-      </Typography>
-      {sort.field === field &&
-        (sort.desc ? (
-          <ArrowDownwardRounded sx={{ fontSize: 13 }} />
-        ) : (
-          <ArrowUpwardRounded sx={{ fontSize: 13 }} />
-        ))}
-    </Box>
+      <TableSortLabel
+        active={sort.field === field}
+        direction={sort.field === field && !sort.desc ? 'asc' : 'desc'}
+        IconComponent={ArrowDownwardRounded}
+        onClick={() =>
+          setManualSort({
+            field,
+            desc:
+              sort.field === field
+                ? !sort.desc
+                : !['name', 'group', 'process'].includes(field),
+          })
+        }
+      >
+        {t(key)}
+      </TableSortLabel>
+    </TableCell>
   )
 
   return (
-    <Box>
-      <Box
+    <TableContainer sx={{ overflowX: 'auto', userSelect: 'text' }}>
+      <Table
+        size="small"
+        aria-label={t('trafficStats.page.title')}
         sx={{
-          display: 'grid',
-          gridTemplateColumns: gridColumns,
-          alignItems: 'center',
-          gap: 1,
-          px: 1,
-          py: 0.6,
-          position: 'sticky',
-          top: 0,
-          zIndex: 1,
-          bgcolor: 'background.paper',
-          borderBottom: `1px solid ${theme.palette.divider}`,
+          minWidth: showProcessColumn ? 780 : 620,
+          tableLayout: 'auto',
+          '& th': { whiteSpace: 'nowrap' },
+          '& td': { verticalAlign: 'top' },
         }}
       >
-        <Typography variant="caption" color="text.secondary">
-          #
-        </Typography>
-        {renderHeader('name', 'trafficStats.table.name', 'left')}
-        {renderHeader('group', 'trafficStats.table.group', 'left')}
-        {showProcessColumn &&
-          renderHeader('process', 'trafficStats.table.process', 'left')}
-        {renderHeader('up', 'trafficStats.table.up', 'right')}
-        {renderHeader('down', 'trafficStats.table.down', 'right')}
-        {renderHeader('total', 'trafficStats.table.total', 'right')}
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ textAlign: 'right' }}
-        >
-          {t('trafficStats.table.share')}
-        </Typography>
-      </Box>
-
-      {sorted.map((entry, index) => {
-        const value = metricValue(entry, metric)
-        const share = grandTotal > 0 ? (value / grandTotal) * 100 : 0
-        const barWidth = peak > 0 ? (value / peak) * 100 : 0
-        const name = displayName(entry)
-        const group = displayGroup(entry)
-
-        return (
-          <Box
-            key={entry.key}
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: gridColumns,
-              alignItems: 'center',
-              gap: 1,
-              px: 1,
-              py: 0.7,
-              position: 'relative',
-              '&:hover': { bgcolor: 'action.hover' },
-            }}
-          >
-            {/* 占比条铺在行底，不额外占列宽 */}
-            <Box
-              sx={{
-                position: 'absolute',
-                left: 0,
-                top: 2,
-                bottom: 2,
-                width: `${barWidth}%`,
-                bgcolor: colorOf(entry.key),
-                opacity: 0.14,
-                borderRadius: '0 4px 4px 0',
-                pointerEvents: 'none',
-              }}
-            />
-            <Typography variant="caption" color="text.secondary">
-              {index + 1}
-            </Typography>
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 0.8,
-                minWidth: 0,
-              }}
-            >
-              <Box
+        <TableHead>
+          <TableRow>
+            <TableCell>#</TableCell>
+            {header('name', 'trafficStats.table.name')}
+            {showGroupColumn && header('group', 'trafficStats.table.group')}
+            {showProcessColumn &&
+              header('process', 'trafficStats.table.process')}
+            {header('up', 'trafficStats.table.up', true)}
+            {header('down', 'trafficStats.table.down', true)}
+            {header('total', 'trafficStats.table.total', true)}
+            <TableCell align="right">{t('trafficStats.table.share')}</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {sorted.map((entry, index) => {
+            const share =
+              grandTotal > 0
+                ? (metricValue(entry, metric) / grandTotal) * 100
+                : 0
+            const name = displayName(entry)
+            const process = displayProcess?.(entry)
+            return (
+              <TableRow
+                key={entry.key}
+                hover
                 sx={{
-                  width: 9,
-                  height: 9,
-                  borderRadius: '2px',
-                  flexShrink: 0,
-                  bgcolor: colorOf(entry.key),
+                  backgroundImage: `linear-gradient(90deg, ${colorOf(entry.key)} 0%, ${colorOf(entry.key)} ${share}%, transparent ${share}%)`,
+                  backgroundSize: '100% 3px',
+                  backgroundPosition: 'left bottom',
+                  backgroundRepeat: 'no-repeat',
                 }}
-              />
-              <Typography variant="body2" noWrap title={name}>
-                {name}
-              </Typography>
-            </Box>
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              noWrap
-              title={group}
-            >
-              {group}
-            </Typography>
-            {showProcessColumn && (
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                noWrap
-                title={displayProcess?.(entry) ?? ''}
               >
-                {displayProcess?.(entry) ?? ''}
-              </Typography>
-            )}
-            <Typography
-              variant="body2"
-              sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
-            >
-              {formatBytes(entry.up)}
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
-            >
-              {formatBytes(entry.down)}
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{
-                textAlign: 'right',
-                fontWeight: 600,
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
-              {formatBytes(entry.up + entry.down)}
-            </Typography>
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
-            >
-              {share.toFixed(1)}%
-            </Typography>
-          </Box>
-        )
-      })}
-    </Box>
+                <TableCell sx={{ color: 'text.secondary' }}>
+                  {index + 1}
+                </TableCell>
+                <TableCell sx={{ minWidth: 170, maxWidth: 340 }}>
+                  <Box
+                    sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5 }}
+                  >
+                    <Box
+                      sx={{
+                        width: 9,
+                        height: 9,
+                        mt: 0.7,
+                        flexShrink: 0,
+                        bgcolor: colorOf(entry.key),
+                        borderRadius: '2px',
+                      }}
+                    />
+                    <Typography
+                      variant="body2"
+                      sx={{ overflowWrap: 'anywhere', flex: 1 }}
+                    >
+                      {name}
+                    </Typography>
+                    <IconButton
+                      size="small"
+                      aria-label={t('trafficStats.table.copyName')}
+                      title={t('trafficStats.table.copyName')}
+                      onClick={() => void copy(name)}
+                    >
+                      <ContentCopyRounded sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  </Box>
+                  {!showProcessColumn && entry.processPath && (
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 0.5,
+                        mt: 0.4,
+                      }}
+                    >
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ overflowWrap: 'anywhere', flex: 1 }}
+                      >
+                        {entry.processPath}
+                      </Typography>
+                      <IconButton
+                        size="small"
+                        aria-label={t('trafficStats.table.copyProcessPath')}
+                        title={t('trafficStats.table.copyProcessPath')}
+                        onClick={() => void copy(entry.processPath!)}
+                      >
+                        <ContentCopyRounded sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </Box>
+                  )}
+                </TableCell>
+                {showGroupColumn && (
+                  <TableCell
+                    sx={{
+                      minWidth: 90,
+                      maxWidth: 200,
+                      overflowWrap: 'anywhere',
+                    }}
+                  >
+                    {displayGroup(entry)}
+                  </TableCell>
+                )}
+                {showProcessColumn && (
+                  <TableCell
+                    sx={{
+                      minWidth: 130,
+                      maxWidth: 300,
+                      overflowWrap: 'anywhere',
+                    }}
+                  >
+                    <Typography variant="body2" color="text.secondary">
+                      {process || t('trafficStats.table.processUnavailable')}
+                    </Typography>
+                    {entry.processPath && (
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 0.5,
+                        }}
+                      >
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ overflowWrap: 'anywhere', flex: 1 }}
+                        >
+                          {entry.processPath}
+                        </Typography>
+                        <IconButton
+                          size="small"
+                          aria-label={t('trafficStats.table.copyProcessPath')}
+                          title={t('trafficStats.table.copyProcessPath')}
+                          onClick={() => void copy(entry.processPath!)}
+                        >
+                          <ContentCopyRounded sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      </Box>
+                    )}
+                  </TableCell>
+                )}
+                <TableCell
+                  align="right"
+                  sx={{
+                    whiteSpace: 'nowrap',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {formatBytes(entry.up)}
+                </TableCell>
+                <TableCell
+                  align="right"
+                  sx={{
+                    whiteSpace: 'nowrap',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {formatBytes(entry.down)}
+                </TableCell>
+                <TableCell
+                  align="right"
+                  sx={{
+                    whiteSpace: 'nowrap',
+                    fontVariantNumeric: 'tabular-nums',
+                    fontWeight: 600,
+                  }}
+                >
+                  {formatBytes(entry.up + entry.down)}
+                </TableCell>
+                <TableCell
+                  align="right"
+                  sx={{
+                    whiteSpace: 'nowrap',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {share.toFixed(1)}%
+                </TableCell>
+              </TableRow>
+            )
+          })}
+        </TableBody>
+      </Table>
+    </TableContainer>
   )
 }

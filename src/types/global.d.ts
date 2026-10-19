@@ -997,6 +997,10 @@ interface ITrafficStatsQuery {
   granularity: TrafficStatsGranularity
   /** keep only the top N keys, the rest are merged into `__other__` */
   topN?: number
+  groups?: string[]
+  metric?: 'total' | 'up' | 'down'
+  search?: string
+  aggregate?: boolean
 }
 
 interface ITrafficStatsEntry {
@@ -1008,12 +1012,15 @@ interface ITrafficStatsEntry {
   group?: string | null
   /** process that generated this traffic; populated in host dimension */
   process?: string | null
+  processPath?: string | null
   up: number
   down: number
 }
 
 /** Column headers and aggregate-row names for the exported workbook, in the current UI language. */
 interface ITrafficStatsExportLabels {
+  context?: string
+  warningLabels?: Record<string, string>
   summarySheet: string
   detailSheet: string
   time: string
@@ -1033,6 +1040,7 @@ interface ITrafficStatsBucket {
   /** bucket start, unix ms, aligned to local time */
   ts: number
   items: ITrafficStatsEntry[]
+  observed?: boolean
 }
 
 interface ITrafficStatsResult {
@@ -1040,6 +1048,8 @@ interface ITrafficStatsResult {
   buckets: ITrafficStatsBucket[]
   totals: ITrafficStatsEntry[]
   truncated: boolean
+  groups?: string[]
+  warnings?: string[]
 }
 
 // Traffic monitor types
