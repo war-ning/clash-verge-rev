@@ -9,8 +9,8 @@ ManifestDPIAwareness PerMonitorV2
 !if "{{compression}}" == "none"
   SetCompress off
 !else
-  ; Set the compression algorithm. We default to LZMA.
-  SetCompressor /SOLID "{{compression}}"
+  ; Set the compression algorithm. We default to LZMA (non-solid to avoid mmap issues).
+  SetCompressor "{{compression}}"
 !endif
 
 !include MUI2.nsh
