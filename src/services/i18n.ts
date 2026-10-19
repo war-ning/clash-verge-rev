@@ -92,6 +92,7 @@ const STARTUP_LANGUAGE_SECTIONS = [
   'tests',
   'rules',
   'connections',
+  'trafficStatistics',
   'logs',
 ] as const
 

@@ -110,7 +110,9 @@ Do not infer a friendly software name from an executable filename. Shared hosts
 are identified as processes unless a trustworthy source provides more detail.
 Paths are identity evidence, not proof that two executables belong to one app.
 Keep route (direct/proxy/unknown) separate from the group name: a group can
-select DIRECT. Retain the observed chain as evidence; never label every policy
+select DIRECT. The terminal entry in the observed core chain determines the route;
+the outermost entry supplies the group/outbound label. Nested entries are not
+counted again as independent copies of the same traffic. Never label every policy
 group as proxy traffic. When a group cannot be determined, a selected-group
 query excludes that traffic and explains the exclusion. An unattributed ratio
 is shown only where its numerator and denominator have the same scope.
@@ -133,7 +135,9 @@ and classify the interval as inconsistent rather than silently inflating totals
 or inventing a proportional split. This case needs a reproducible core fixture
 before enabling production collection.
 
-Retain original tuples at hourly granularity; no ingest-time top-N collapse.
+Retain original tuples with sample-end minute attribution inside hourly storage
+files; no ingest-time top-N collapse. Minute boundaries support local calendar
+dates in timezones whose UTC offsets are not a whole number of hours.
 Persist sampling coverage intervals separately from byte records so a sampled
 zero and an unsampled gap remain distinguishable. A day with one sample is
 partial, not complete. Charts use continuous buckets and interval coverage,
@@ -166,6 +170,8 @@ It contains schema version, generated time, UTC boundaries, timezone, group
 selection semantics, search, dimension, metric, ordering, coverage and read/save
 warnings, complete matching tuples, object summaries and continuous time buckets.
 Byte values remain integers. Presentation limits never enter the export query.
+If a snapshot contains unsaved records, export is disabled until saving succeeds;
+an incomplete-read acknowledgement cannot turn unsaved data into saved records.
 Label export format in the action. A single snapshot supplies both the visible
 result and export; if fresher data is wanted, Refresh first. A failed save is
 not success, cancellation is neutral, partial source reads require an explicit

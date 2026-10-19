@@ -175,6 +175,13 @@ pub async fn quit() -> clash_verge_signal::ShutdownOutcome {
 }
 
 pub async fn clean_async() -> CleanupResult {
+    if let Err(error) = crate::traffic_statistics::flush().await {
+        logging!(
+            error,
+            Type::System,
+            "Failed to save statistics before shutdown or restart: {error}"
+        );
+    }
     let stop_error = Mutex::new(None);
     let mut result = run_interactive_cleanup_transition(
         || async {

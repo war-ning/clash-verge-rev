@@ -55,6 +55,11 @@ pub async fn install_update(
     version: String,
     on_event: Channel<DownloadEvent>,
 ) -> CmdResult<bool> {
+    if crate::traffic_statistics::MANUAL_UPDATES {
+        return Err(super::CommandFailure::plain(
+            "This custom statistics build requires a validated custom installer; official updates are disabled",
+        ));
+    }
     SilentUpdater::global()
         .install_update(&app_handle, &version, |event| {
             let _ = on_event.send(event);

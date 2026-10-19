@@ -212,6 +212,7 @@ export interface TranslationResources {
             proxies: string
             rules: string
             settings: string
+            statistics: string
             unlock: string
           }
         }
@@ -1602,6 +1603,103 @@ export interface TranslationResources {
           title: string
         }
       }
+    }
+    trafficStatistics: {
+      all: string
+      apply: string
+      ascending: string
+      cancel: string
+      clear: string
+      clearConfirm: string
+      cleared: string
+      clearSearch: string
+      close: string
+      collecting: string
+      combinations: string
+      confirm: string
+      copied: string
+      copy: string
+      coverage: string
+      coverageHelp: string
+      custom: string
+      default: string
+      details: string
+      development: string
+      direct: string
+      disconnected: string
+      download: string
+      enabled: string
+      end: string
+      excluded: string
+      export: string
+      exported: string
+      failure: string
+      group: string
+      groups: string
+      identity: string
+      incompleteExport: string
+      inconsistent: string
+      known: string
+      loading: string
+      manage: string
+      manualUpdates: string
+      metric: string
+      month: string
+      name: string
+      nameOnly: string
+      noCoverage: string
+      noMatch: string
+      none: string
+      noSamples: string
+      observed: string
+      partial: string
+      path: string
+      paused: string
+      pendingDates: string
+      privacy: string
+      process: string
+      processHelp: string
+      proxy: string
+      rangeError: string
+      ranking: string
+      rawProcess: string
+      recordingOff: string
+      recordProcesses: string
+      recordTargets: string
+      refresh: string
+      remaining: string
+      reset: string
+      retention: string
+      retry: string
+      route: string
+      sample: string
+      save: string
+      saved: string
+      scope: string
+      search: string
+      selectAll: string
+      share: string
+      showAll: string
+      showing: string
+      showLess: string
+      start: string
+      target: string
+      theme: string
+      timeDetails: string
+      title: string
+      today: string
+      total: string
+      trend: string
+      unattributed: string
+      unattributedHelp: string
+      unknown: string
+      unknownRoute: string
+      unsaved: string
+      updated: string
+      upload: string
+      warnings: string
+      week: string
+      zero: string
     }
   }
 }

@@ -3,6 +3,7 @@ import ForkRightOutlinedIcon from '@mui/icons-material/ForkRightOutlined'
 import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined'
 import LanguageOutlinedIcon from '@mui/icons-material/LanguageOutlined'
 import LockOpenOutlinedIcon from '@mui/icons-material/LockOpenOutlined'
+import QueryStatsOutlinedIcon from '@mui/icons-material/QueryStatsOutlined'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import SubjectOutlinedIcon from '@mui/icons-material/SubjectOutlined'
 import WifiOutlinedIcon from '@mui/icons-material/WifiOutlined'
@@ -25,6 +26,7 @@ import ProfilePage from './profiles'
 import ProxyPage from './proxies'
 import RulesPage from './rules'
 import SettingPage from './settings'
+import TrafficStatisticsPage from './traffic-statistics'
 import UnlockPage from './unlock'
 
 type NavigationItem = {
@@ -54,6 +56,14 @@ export const navItems: NavigationItem[] = [
     ...navigationItems.connections,
     icon: [<LanguageOutlinedIcon key="mui" />, <ConnectionsSvg key="svg" />],
     Component: ConnectionsPage,
+  },
+  {
+    ...navigationItems.statistics,
+    icon: [
+      <QueryStatsOutlinedIcon key="mui" />,
+      <QueryStatsOutlinedIcon key="svg" />,
+    ],
+    Component: TrafficStatisticsPage,
   },
   {
     ...navigationItems.rules,

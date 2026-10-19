@@ -74,6 +74,7 @@ async fn resolve_setup() {
         init_verge_config().await;
     }
     Config::verify_config_initialization().await;
+    crate::traffic_statistics::start();
 
     // Live before the core starts, so a service appearing mid-start is not missed.
     #[cfg(target_os = "macos")]
@@ -170,6 +171,15 @@ async fn init_auto_backup() {
 async fn init_silent_updater() {
     use crate::core::SilentUpdater;
     use crate::core::handle::Handle;
+
+    if crate::traffic_statistics::MANUAL_UPDATES {
+        logging!(
+            info,
+            Type::Setup,
+            "Custom statistics build: install validated custom updates manually"
+        );
+        return;
+    }
 
     logging!(debug, Type::Setup, "Initializing silent updater...");
 

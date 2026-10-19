@@ -5,6 +5,7 @@ import {
 } from '@tauri-apps/plugin-updater'
 import { compareVersions as compareSemver } from 'compare-versions'
 
+import customRelease from '@root/custom-release.json'
 import { version as appVersion } from '@root/package.json'
 
 const SEMVER_FULL_REGEX =
@@ -72,6 +73,7 @@ const localVersionNormalized = normalizeVersion(appVersion)
 export const checkUpdateSafe = async (
   options?: CheckOptions,
 ): Promise<Update | null> => {
+  if (customRelease.updateMode === 'manual') return null
   const result = await check(options ?? {})
   if (!result) return null
 
