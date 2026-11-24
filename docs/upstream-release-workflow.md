@@ -1,6 +1,12 @@
 # 同步官方正式版标签与升级自定义版本
 
-> 本文保留手动操作参考。当前自动同步、验证及自定义更新渠道以[2026-11-19 详细开发计划](traffic-stats-development-plan.md)为准；不代表自动流水线已经实现。
+当前维护线以官方 `v2.5.10` 为基准。以下手动命令保留 `v2.5.8` 作为示例。
+
+## 自定义构建和发布
+
+- `traffic-statistics-check.yml` 在维护分支上验证 Rust 和前端，生成 Windows x64 NSIS 候选包。
+- `traffic-upstream.yml` 读取官方正式 Release。干净合并后固定候选提交，复用 Windows 验证，生成草稿 PR。若遇到冲突或维护分支变动，保留人工处理。定时触发需要工作流进入 fork 的默认分支，并设置仓库变量 `TRAFFIC_UPSTREAM_SYNC=true`。创建 PR 需要仓库允许 GitHub Actions 创建 PR。
+- `traffic-release.yml` 手动接收一个已验证的维护提交，构建并签名 Windows 候选包，验证草稿 Release 的附件，再公开安装包和更新清单。发行标签使用 `traffic-v<版本>`。配置 `traffic-release` 环境中的 `TRAFFIC_SIGNING_PRIVATE_KEY` 和 `TRAFFIC_SIGNING_PRIVATE_KEY_PASSWORD`，并在 `custom-release.json` 与 Tauri 配置中填入相同的公钥和 fork 更新清单地址。完成首次覆盖升级与签名演练后再启用客户端自动更新。
 
 ## 当前起点
 

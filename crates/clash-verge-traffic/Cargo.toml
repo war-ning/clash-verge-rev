@@ -12,6 +12,7 @@ iana-time-zone = "0.1"
 rusqlite = { version = "0.43.0", features = ["bundled", "backup", "fallible_uint"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+specta = { version = "=2.0.0-rc.25", features = ["derive"] }
 tokio = { workspace = true }
 
 [lints]

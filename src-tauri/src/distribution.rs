@@ -67,7 +67,13 @@ pub async fn prepare_update() -> Result<()> {
         }
     }
     crate::traffic_statistics::backup(backup.join("usage.sqlite3")).await?;
-    let manifest = serde_json::json!({"applicationVersion":env!("CARGO_PKG_VERSION"),"core":version,"servicePackageVersion":"v2.7.6","statisticsSchema":2,"createdAt":chrono::Utc::now().to_rfc3339(),"note":"Local recovery snapshot. Restore configuration and database together only after reviewing changes made since this snapshot."});
+    let manifest = serde_json::json!({
+        "applicationVersion": env!("CARGO_PKG_VERSION"),
+        "core": version,
+        "servicePackageVersion": "v2.7.7",
+        "statisticsSchema": 2,
+        "createdAt": chrono::Utc::now().to_rfc3339(),
+    });
     tokio::fs::write(backup.join("manifest.json"), serde_json::to_vec_pretty(&manifest)?).await?;
     Ok(())
 }

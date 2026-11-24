@@ -11,7 +11,7 @@ use crate::{
     utils::dirs,
 };
 
-static WORKER: OnceLock<Worker> = OnceLock::new();
+static WORKER: tokio::sync::OnceCell<Worker> = tokio::sync::OnceCell::const_new();
 static START_ERROR: OnceLock<String> = OnceLock::new();
 
 fn worker() -> Result<&'static Worker> {
@@ -24,27 +24,30 @@ fn worker() -> Result<&'static Worker> {
     })
 }
 
+fn database_path() -> Result<std::path::PathBuf> {
+    Ok(dirs::app_home_dir()?.join("traffic-statistics/v2/usage.sqlite3"))
+}
+
+async fn initialize_worker() -> Result<&'static Worker> {
+    WORKER
+        .get_or_try_init(|| async {
+            tokio::task::spawn_blocking(|| Worker::open(database_path()?, clash_verge_traffic::system_timezone()?))
+                .await?
+        })
+        .await
+}
+
 pub fn start() {
     AsyncHandler::spawn(|| async {
-        let initialized = tokio::task::spawn_blocking(|| {
-            Worker::open(
-                dirs::app_home_dir()?.join("traffic-statistics/v2/usage.sqlite3"),
-                clash_verge_traffic::system_timezone()?,
-            )
-        })
-        .await;
-        let owner = match initialized {
-            Ok(Ok(owner)) => owner,
-            error => {
+        let owner = match initialize_worker().await {
+            Ok(owner) => owner,
+            Err(error) => {
                 let message = format!("Statistics could not start; existing files were preserved: {error:?}");
                 log::error!("{message}");
                 let _ = START_ERROR.set(message);
                 return;
             }
         };
-        if WORKER.set(owner.clone()).is_err() {
-            return;
-        }
         let mut timer = tokio::time::interval(std::time::Duration::from_secs(1));
         timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
@@ -122,13 +125,11 @@ pub async fn clear() -> Result<()> {
     worker()?.clear(Utc::now().timestamp_millis()).await
 }
 pub async fn backup(path: std::path::PathBuf) -> Result<()> {
-    if let Some(owner) = WORKER.get() {
-        owner.backup(path, Utc::now().timestamp_millis()).await?;
-    } else if dirs::app_home_dir()?
-        .join("traffic-statistics/v2/usage.sqlite3")
-        .exists()
-    {
-        return Err(anyhow!("Statistics must be available before an update backup"));
+    if WORKER.initialized() || tokio::fs::try_exists(database_path()?).await? {
+        initialize_worker()
+            .await?
+            .backup(path, Utc::now().timestamp_millis())
+            .await?;
     }
     Ok(())
 }

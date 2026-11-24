@@ -1,7 +1,11 @@
-import { invoke } from '@tauri-apps/api/core'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { save } from '@tauri-apps/plugin-dialog'
 
+import {
+  clearTrafficStatistics,
+  exportTrafficStatistics,
+  readTrafficStatistics,
+} from '@/services/cmds'
 import { mutate } from '@/services/mutate'
 
 import type { TrafficQuery, TrafficSnapshot } from './model'
@@ -14,9 +18,9 @@ export interface StatisticsApi {
 }
 
 export const statisticsApi: StatisticsApi = {
-  read: (query) => invoke('read_traffic_statistics', { query }),
+  read: readTrafficStatistics,
   clear: async () => {
-    await mutate(() => invoke('clear_traffic_statistics'), {
+    await mutate(clearTrafficStatistics, {
       id: 'traffic-statistics',
       errorNotice: false,
     })
@@ -33,7 +37,7 @@ export const statisticsApi: StatisticsApi = {
       filters: [{ name: 'JSON', extensions: ['json'] }],
     })
     if (!path) return
-    await mutate(() => invoke('export_traffic_statistics', { query, path }), {
+    await mutate(() => exportTrafficStatistics(query, path), {
       id: 'traffic-statistics-export',
       errorNotice: false,
     })

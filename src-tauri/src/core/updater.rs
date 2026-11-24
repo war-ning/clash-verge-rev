@@ -34,7 +34,7 @@ impl SilentUpdater {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, specta::Type)]
 struct UpdateCacheMeta {
     version: String,
     downloaded_at: String,
@@ -214,7 +214,7 @@ fn nsis_language_id(app_language: &str) -> &'static str {
 }
 
 /// Same wire shape as the updater plugin's JS `DownloadEvent`.
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, specta::Type)]
 #[serde(tag = "event", content = "data")]
 pub enum DownloadEvent {
     #[serde(rename_all = "camelCase")]
@@ -331,6 +331,10 @@ impl SilentUpdater {
 
     /// Installs a newer cached update before normal startup, if the user confirms.
     pub async fn try_install_on_startup(&self, app_handle: &tauri::AppHandle) -> bool {
+        if !crate::distribution::updates_configured() {
+            Self::delete_cache();
+            return false;
+        }
         if !Config::verge().await.latest_arc().auto_check_update.unwrap_or(true) {
             Self::delete_cache();
             return false;
@@ -682,6 +686,9 @@ impl SilentUpdater {
     }
 
     pub async fn start_background_check(&self, app_handle: tauri::AppHandle) {
+        if !crate::distribution::updates_configured() {
+            return;
+        }
         // Permanent watcher: daily update cycles for the lifetime of the app.
         logging!(info, Type::System, "Silent updater: background task started");
 

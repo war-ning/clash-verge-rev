@@ -16,7 +16,7 @@ pub fn system_timezone() -> anyhow::Result<String> {
     iana_time_zone::get_timezone().map_err(Into::into)
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Identity {
     pub target: String,
@@ -72,7 +72,7 @@ pub struct Delta {
     pub download: u64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Query {
     pub period: String,
@@ -107,14 +107,14 @@ impl Default for Query {
     }
 }
 
-#[derive(Clone, Debug, Default, Serialize)]
+#[derive(Clone, Debug, Default, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Totals {
     pub upload: u64,
     pub download: u64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TargetRow {
     pub target: String,
@@ -123,7 +123,7 @@ pub struct TargetRow {
     pub last_seen: i64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DetailRow {
     #[serde(flatten)]
@@ -133,14 +133,14 @@ pub struct DetailRow {
     pub last_seen: i64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, specta::Type)]
 pub struct DailyRow {
     pub date: String,
     pub upload: u64,
     pub download: u64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
     pub start: i64,

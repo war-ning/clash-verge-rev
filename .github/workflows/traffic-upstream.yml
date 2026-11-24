@@ -1,0 +1,110 @@
+name: Prepare upstream traffic statistics update
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Official stable tag, or leave blank for the latest release
+        type: string
+  schedule:
+    - cron: '17 4 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: traffic-statistics-upstream
+
+jobs:
+  merge:
+    if: github.repository == 'war-ning/clash-verge-rev' && (github.event_name == 'workflow_dispatch' || vars.TRAFFIC_UPSTREAM_SYNC == 'true')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      branch: ${{ steps.merge.outputs.branch }}
+      commit: ${{ steps.merge.outputs.commit }}
+      base: ${{ steps.merge.outputs.base }}
+      tag: ${{ steps.merge.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: codex/traffic-stats-rewrite
+          fetch-depth: 0
+      - id: merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          upstream=clash-verge-rev/clash-verge-rev
+          if [[ -n "$REQUESTED_TAG" ]]; then
+            [[ "$REQUESTED_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+            release=$(gh api "repos/$upstream/releases/tags/$REQUESTED_TAG")
+          else
+            release=$(gh api "repos/$upstream/releases/latest")
+          fi
+          tag=$(jq -er 'select(.draft == false and .prerelease == false) | .tag_name' <<< "$release")
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          previous=$(jq -er .upstreamTag custom-release.json)
+          if [[ "$tag" == "$previous" ]]; then
+            exit 0
+          fi
+          test "$(printf '%s\n%s\n' "$tag" "$previous" | sort -V | tail -1)" = "$tag"
+          base=$(git rev-parse HEAD)
+          git fetch --no-tags "https://github.com/$upstream.git" "refs/tags/$tag"
+          upstream_commit=$(git rev-parse 'FETCH_HEAD^{commit}')
+          git merge-base --is-ancestor "$(jq -er .upstreamCommit custom-release.json)" "$upstream_commit"
+          branch="codex/sync-traffic-$tag"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git ls-remote --exit-code origin "refs/heads/$branch" >/dev/null; then
+            git fetch --no-tags origin "refs/heads/$branch"
+            git switch --detach FETCH_HEAD
+            test "$(git rev-parse HEAD^1)" = "$base"
+            test "$(git rev-parse HEAD^2)" = "$upstream_commit"
+          else
+            git merge --no-ff --no-commit "$upstream_commit"
+            jq --arg tag "$tag" --arg commit "$upstream_commit" \
+              '.upstreamTag = $tag | .upstreamCommit = $commit' custom-release.json > custom-release.tmp
+            mv custom-release.tmp custom-release.json
+            git add custom-release.json
+            git commit -m "chore(upstream): merge official $tag" -m 'Refs #1'
+            git push origin "HEAD:refs/heads/$branch"
+          fi
+          printf 'branch=%s\ncommit=%s\nbase=%s\ntag=%s\n' "$branch" "$(git rev-parse HEAD)" "$base" "$tag" >> "$GITHUB_OUTPUT"
+
+  verify:
+    needs: merge
+    if: needs.merge.outputs.commit != ''
+    uses: ./.github/workflows/traffic-statistics-check.yml
+    with:
+      ref: ${{ needs.merge.outputs.commit }}
+
+  pull-request:
+    needs: [merge, verify]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BRANCH: ${{ needs.merge.outputs.branch }}
+      BASE_COMMIT: ${{ needs.merge.outputs.base }}
+      TAG: ${{ needs.merge.outputs.tag }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - run: |
+          base_branch=codex/traffic-stats-rewrite
+          current=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$base_branch" --jq .object.sha)
+          test "$current" = "$BASE_COMMIT"
+          existing=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --base "$base_branch" --json number --jq length)
+          if [[ "$existing" == 0 ]]; then
+            body="$RUNNER_TEMP/traffic-pr.md"
+            printf 'Refs #1. Merge the verified upstream stable release %s into the traffic statistics branch.\n\nWindows verification and candidate installer are available in run %s.\n\nAssisted by: GPT-6\n' "$TAG" "$GITHUB_RUN_ID" > "$body"
+            gh pr create --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --base "$base_branch" \
+              --draft --title "chore(upstream): sync traffic statistics with $TAG" --body-file "$body"
+          fi

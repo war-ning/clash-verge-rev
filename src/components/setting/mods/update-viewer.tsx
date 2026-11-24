@@ -1,5 +1,4 @@
 import { alpha, Box, Button, LinearProgress } from '@mui/material'
-import type { DownloadEvent } from '@tauri-apps/plugin-updater'
 import { useLockFn } from 'ahooks'
 import type { Ref } from 'react'
 import {
@@ -15,6 +14,7 @@ import type { Options as ReactMarkdownOptions } from 'react-markdown'
 
 import { BaseDialog, DialogRef } from '@/components/base'
 import { useUpdate } from '@/hooks/use-update'
+import type { DownloadEvent } from '@/services/bindings'
 import {
   cancelUpdateDownload,
   installUpdate,
@@ -72,12 +72,10 @@ const LazyReactMarkdown = lazy(async () => {
     { default: ReactMarkdown },
     { default: rehypeRaw },
     { default: rehypeSanitize, defaultSchema },
-    { default: remarkGfm },
   ] = await Promise.all([
     import('react-markdown'),
     import('rehype-raw'),
     import('rehype-sanitize'),
-    import('remark-gfm'),
   ])
 
   const sanitizeSchema = {
@@ -104,7 +102,6 @@ const LazyReactMarkdown = lazy(async () => {
     default: (props: ReactMarkdownOptions) => (
       <ReactMarkdown
         {...props}
-        remarkPlugins={[remarkGfm, ...(props.remarkPlugins ?? [])]}
         rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
       />
     ),

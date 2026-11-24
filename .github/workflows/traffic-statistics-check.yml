@@ -2,6 +2,10 @@ name: Traffic statistics verification
 
 on:
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
   push:
     branches:
       - codex/traffic-stats-rewrite
@@ -26,9 +30,12 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
-          node-version: '24.21.0'
+          node-version: '26.13.0'
       - uses: pnpm/action-setup@v6
       - run: pnpm install --frozen-lockfile
       - run: cargo test --locked -p clash-verge-traffic
@@ -36,3 +43,19 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm exec eslint src/components/traffic-statistics src/services/traffic-statistics --max-warnings=0
       - run: pnpm web:build
+      - if: github.event_name != 'pull_request'
+        run: pnpm prebuild x86_64-pc-windows-msvc
+      - if: github.event_name != 'pull_request'
+        run: pnpm gen:contract --check
+      - if: github.event_name != 'pull_request'
+        name: Build Windows candidate
+        run: |
+          '{"build":{"beforeBuildCommand":""},"bundle":{"createUpdaterArtifacts":false}}' |
+            Set-Content -Encoding utf8 "$env:RUNNER_TEMP/traffic-candidate.json"
+          pnpm tauri build --bundles nsis --config "$env:RUNNER_TEMP/traffic-candidate.json"
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: traffic-statistics-windows-x64-candidate
+          path: target/release/bundle/nsis/*_x64-setup.exe
+          if-no-files-found: error

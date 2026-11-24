@@ -1,0 +1,110 @@
+name: Publish traffic statistics build
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Verified maintenance commit to publish
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: traffic-statistics-release
+
+jobs:
+  validate:
+    if: github.repository == 'war-ning/clash-verge-rev' && github.ref == 'refs/heads/codex/traffic-stats-rewrite'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - env:
+          EXPECTED_COMMIT: ${{ inputs.commit }}
+        run: |
+          test "$GITHUB_SHA" = "$EXPECTED_COMMIT"
+          test "$(jq -r .updateMode custom-release.json)" = automatic
+          endpoint="https://github.com/$GITHUB_REPOSITORY/releases/latest/download/traffic-update.json"
+          jq -e --arg endpoint "$endpoint" '.updateEndpoint == $endpoint and (.updatePublicKey | length > 0)' custom-release.json
+          key=$(jq -r .updatePublicKey custom-release.json)
+          jq -e --arg endpoint "$endpoint" --arg key "$key" '.plugins.updater | .endpoints == [$endpoint] and .pubkey == $key and .requireSignedVersion == true' src-tauri/tauri.conf.json
+
+  candidate:
+    needs: validate
+    uses: ./.github/workflows/traffic-statistics-check.yml
+
+  publish:
+    needs: candidate
+    runs-on: ubuntu-latest
+    environment: traffic-release
+    permissions:
+      contents: write
+    env:
+      HUSKY: 0
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '26.13.0'
+      - uses: pnpm/action-setup@v6
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - uses: actions/download-artifact@v8
+        with:
+          name: traffic-statistics-windows-x64-candidate
+          path: candidate
+      - name: Sign and verify installer
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TRAFFIC_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TRAFFIC_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          version=$(jq -er '.version | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))' package.json)
+          test "$(jq -r .version src-tauri/tauri.conf.json)" = "$version"
+          candidate="candidate/Clash Verge_${version}_x64-setup.exe"
+          installer="candidate/Clash.Verge_${version}_x64-setup.exe"
+          mv "$candidate" "$installer"
+          pnpm exec tauri signer sign --app-version "$version" "$installer"
+          jq -r .updatePublicKey custom-release.json | base64 -d > "$RUNNER_TEMP/traffic.pub"
+          base64 -d "$installer.sig" > "$RUNNER_TEMP/traffic.sig"
+          sudo apt-get update
+          sudo apt-get install -y minisign
+          minisign -V -p "$RUNNER_TEMP/traffic.pub" -x "$RUNNER_TEMP/traffic.sig" -m "$installer"
+          grep -F "$(printf '\tversion:%s' "$version")" "$RUNNER_TEMP/traffic.sig"
+          tag="traffic-v$version"
+          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/${installer##*/}"
+          jq -n --arg version "$version" --arg url "$url" --arg date "$(date -u +%FT%TZ)" \
+            --rawfile sig "$installer.sig" '{version:$version,pub_date:$date,platforms:{"windows-x86_64":{url:$url,signature:($sig|rtrimstr("\n"))}}}' \
+            > candidate/traffic-update.json
+          printf 'RELEASE_TAG=%s\n' "$tag" >> "$GITHUB_ENV"
+      - name: Publish installer and update manifest together
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/codex/traffic-stats-rewrite" --jq .object.sha)
+          test "$current" = "$GITHUB_SHA"
+          releases=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --slurp)
+          latest=$(jq -r '[.[][] | select(.draft == false and .prerelease == false)][0].tag_name // ""' <<< "$releases")
+          if [[ -n "$latest" ]]; then
+            [[ "$latest" == traffic-v* ]]
+            test "$latest" != "$RELEASE_TAG"
+            test "$(printf '%s\n%s\n' "$latest" "$RELEASE_TAG" | sort -V | tail -1)" = "$RELEASE_TAG"
+          fi
+          existing=$(jq -c --arg tag "$RELEASE_TAG" '[.[][] | select(.tag_name == $tag)][0] // null' <<< "$releases")
+          if [[ "$existing" == null ]]; then
+            test -z "$(git ls-remote origin "refs/tags/$RELEASE_TAG")"
+            gh release create "$RELEASE_TAG" --draft --target "$GITHUB_SHA" \
+              --title "Clash Verge Traffic Statistics ${RELEASE_TAG#traffic-v}" \
+              --notes "Windows x64 traffic statistics build from $GITHUB_SHA. Refs #1."
+          else
+            jq -e --arg sha "$GITHUB_SHA" '.draft == true and .target_commitish == $sha' <<< "$existing"
+          fi
+          gh release upload "$RELEASE_TAG" candidate/*.exe candidate/*.sig candidate/traffic-update.json --clobber
+          gh release download "$RELEASE_TAG" --pattern '*' --dir "$RUNNER_TEMP/release-assets"
+          for file in candidate/*; do
+            cmp "$file" "$RUNNER_TEMP/release-assets/${file##*/}"
+          done
+          gh release edit "$RELEASE_TAG" --draft=false --latest
