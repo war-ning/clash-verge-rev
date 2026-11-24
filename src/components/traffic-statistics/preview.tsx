@@ -1,201 +1,114 @@
-import {
-  CssBaseline,
-  Button,
-  MenuItem,
-  Stack,
-  TextField,
-  ThemeProvider,
-  createTheme,
-} from '@mui/material'
-import { StrictMode, useMemo, useState } from 'react'
+import { CssBaseline, ThemeProvider, createTheme } from '@mui/material'
+import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import { initializeLanguage } from '@/services/i18n'
 import type { StatisticsApi } from '@/services/traffic-statistics/api'
-import type {
-  StatisticsSettings,
-  StatisticsSnapshot,
-  TrafficRecord,
-} from '@/services/traffic-statistics/model'
-import { HOUR } from '@/services/traffic-statistics/query'
+import type { TrafficSnapshot } from '@/services/traffic-statistics/model'
 
-import { initialQuery } from './dates'
 import { StatisticsPage } from './page'
 
-function syntheticSnapshot(): StatisticsSnapshot {
-  const { start } = initialQuery()
-  const records: TrafficRecord[] = []
-  const groups = ['Work', 'Media', 'DIRECT']
-  const hours = Math.max(1, Math.floor((Date.now() - start) / HOUR))
-  for (let hour = 0; hour < hours; hour++) {
-    for (let index = 0; index < 83; index++) {
-      records.push({
-        at: start + hour * HOUR,
-        target:
-          index === 2
-            ? 'a-very-long-analytics-hostname-for-testing-readable-complete-target-identities.example.test'
-            : index === 81
-              ? null
-              : `service-${index}.example.test`,
-        process:
-          index === 82
-            ? null
-            : index < 4
-              ? 'browser.exe'
-              : `application-${index % 8}.exe`,
-        path:
-          index > 79
-            ? null
-            : `D:/Applications/${index % 3 === 0 ? 'Work browser installation with a long directory name and spaces' : `Application ${index % 8}`}/${index < 4 ? `instance-${index}/browser.exe` : `application-${index % 8}.exe`}`,
-        group: index === 82 ? null : groups[index % 3],
-        route: index % 3 === 2 ? 'direct' : 'proxy',
-        unattributed: index === 82,
-        upload: (84 - index) * (hour + 1) * 1024,
-        download: (84 - index) * ((hour % 4) + 1) * 256 * 1024,
-      })
+let cleared = false
+const api: StatisticsApi = {
+  read: async (query) => {
+    const now = Date.now()
+    const records = cleared
+      ? []
+      : Array.from({ length: 80 }, (_, i) => ({
+          target: 'cdn-' + i + '.example.com',
+          process: ['chrome.exe', 'Code.exe', 'msedge.exe', ''][i % 4],
+          path: '',
+          ip: '192.0.2.1',
+          rule: 'RuleSet',
+          rulePayload: 'proxy-rules',
+          chain: 'Node → Proxy',
+          route: i % 5 === 0 ? 'direct' : 'proxy',
+          upload: (80 - i) * 64000,
+          download: (80 - i) * 1024 * 1024,
+          lastSeen: now,
+        })).filter((row) => row.route === query.route)
+    const groups = new Map<string, TrafficSnapshot['targets'][number]>()
+    const details = records.filter((row) => {
+      const key = query.byProcess ? row.process : row.target
+      return (
+        (query.target === null || key === query.target) &&
+        [row.target, row.process, row.rule]
+          .join(' ')
+          .toLowerCase()
+          .includes(query.search.toLowerCase())
+      )
+    })
+    for (const row of details) {
+      const key = query.byProcess ? row.process : row.target
+      const group = groups.get(key) ?? {
+        target: key,
+        upload: 0,
+        download: 0,
+        lastSeen: now,
+      }
+      group.upload += row.upload
+      group.download += row.download
+      groups.set(key, group)
     }
-  }
-  return {
-    records,
-    groups,
-    coverage: [
-      {
-        start: start + 2_000,
-        end: start + Math.max(0, hours - 2) * HOUR,
-        offset: -new Date().getTimezoneOffset() * 60,
-        consistent: true,
-      },
-    ],
-    settings: {
-      enabled: true,
-      retentionDays: 30,
-      recordTargets: true,
-      recordProcesses: true,
-    },
-    warnings: [],
-    savedAt: Date.now(),
-    collecting: true,
-    durable: true,
-  }
-}
-
-export function Preview() {
-  const [dark, setDark] = useState(false)
-  const [scenario, setScenario] = useState('normal')
-  const api = useMemo<StatisticsApi>(() => {
-    const source = syntheticSnapshot()
-    if (scenario === 'zero' || scenario === 'empty') source.records = []
-    if (scenario === 'empty') source.coverage = []
-    if (scenario === 'partial')
-      source.warnings = [
-        'Synthetic unreadable-record warning. Readable records remain available.',
-      ]
-    if (scenario === 'paused') source.settings.enabled = false
-    if (scenario === 'unsaved') {
-      source.durable = false
-      source.warnings = [
-        'Synthetic save failure. Retry refresh before exporting.',
-      ]
-    }
+    const metric = (row: { upload: number; download: number }) =>
+      query.metric === 'total' ? row.upload + row.download : row[query.metric]
+    const targets = [...groups.values()].sort((a, b) => metric(b) - metric(a))
+    details.sort((a, b) => metric(b) - metric(a))
+    const sum = (rows: typeof records) =>
+      rows.reduce(
+        (total, row) => ({
+          upload: total.upload + row.upload,
+          download: total.download + row.download,
+        }),
+        { upload: 0, download: 0 },
+      )
+    const wholeRoute = sum(records)
+    const offset = query.page * 50
     return {
-      read: async (start, end) => {
-        if (scenario === 'failure')
-          throw new Error(
-            'Synthetic read failure; use the scenario control to retry.',
-          )
-        return {
-          ...structuredClone(source),
-          records: source.records.filter(
-            (row) => row.at >= start && row.at < end,
-          ),
-        }
-      },
-      configure: async (settings: StatisticsSettings) => {
-        source.settings = structuredClone(settings)
-      },
-      clear: async () => {
-        source.records = []
-        source.coverage = []
-        source.groups = []
-        source.warnings = []
-      },
-      copy: async (value) => {
-        await navigator.clipboard.writeText(value)
-      },
-      export: async (data) => {
-        const url = URL.createObjectURL(
-          new Blob([JSON.stringify(data, null, 2)], {
-            type: 'application/json',
-          }),
-        )
-        const anchor = document.createElement('a')
-        anchor.href = url
-        anchor.download = 'traffic-statistics-preview.json'
-        anchor.click()
-        window.setTimeout(() => URL.revokeObjectURL(url), 1_000)
-        return true
-      },
-    }
-  }, [scenario])
-  const theme = useMemo(
-    () =>
-      createTheme({
-        palette: {
-          mode: dark ? 'dark' : 'light',
-          primary: { main: '#5577dd' },
-        },
-        shape: { borderRadius: 10 },
-        typography: { fontFamily: 'Segoe UI, Microsoft YaHei, sans-serif' },
-      }),
-    [dark],
-  )
-  return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Stack
-        direction="row"
-        sx={{
-          gap: 1,
-          flexWrap: 'wrap',
-          p: 1,
-          borderBottom: '1px solid',
-          borderColor: 'divider',
-        }}
-      >
-        <Button onClick={() => setDark(!dark)}>Light / Dark</Button>
-        <TextField
-          size="small"
-          select
-          label="Preview scenario"
-          value={scenario}
-          onChange={(event) => setScenario(event.target.value)}
-          sx={{ minWidth: 180 }}
-        >
-          {[
-            'normal',
-            'zero',
-            'empty',
-            'partial',
-            'paused',
-            'failure',
-            'unsaved',
-          ].map((value) => (
-            <MenuItem key={value} value={value}>
-              {value}
-            </MenuItem>
-          ))}
-        </TextField>
-      </Stack>
-      <StatisticsPage api={api} preview />
-    </ThemeProvider>
-  )
+      start: new Date().setHours(0, 0, 0, 0),
+      end: now,
+      timezone: 'Asia/Shanghai',
+      collecting: true,
+      observedAt: now,
+      savedAt: now - 30000,
+      pending: true,
+      warning: null,
+      totals: sum(details),
+      targets: targets.slice(offset, offset + 50),
+      matchedTargets: targets.length,
+      details: query.target === null ? [] : details.slice(offset, offset + 50),
+      matchedDetails: query.target === null ? 0 : details.length,
+      daily: [1, 0.93, 0.66, 0.77, 0.56, 0.88, 0.63].map((ratio, index) => ({
+        date: new Date(now - index * 86400000).toISOString().slice(0, 10),
+        upload: wholeRoute.upload * ratio,
+        download: wholeRoute.download * ratio,
+      })),
+      gapMillis: 0,
+      databaseBytes: 245760,
+    } satisfies TrafficSnapshot
+  },
+  clear: async () => {
+    cleared = true
+  },
+  copy: async (value) => navigator.clipboard.writeText(value),
+  export: async () => {},
 }
 
-if (import.meta.env.DEV)
-  void initializeLanguage('zh').then(() =>
-    createRoot(document.getElementById('root')!).render(
-      <StrictMode>
-        <Preview />
-      </StrictMode>,
-    ),
+void initializeLanguage().then(() => {
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <ThemeProvider
+        theme={createTheme({
+          palette: {
+            mode: window.matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'light',
+          },
+        })}
+      >
+        <CssBaseline />
+        <StatisticsPage api={api} preview />
+      </ThemeProvider>
+    </StrictMode>,
   )
+})

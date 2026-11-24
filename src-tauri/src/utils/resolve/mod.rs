@@ -41,7 +41,9 @@ pub(crate) fn init_work_dir_and_logger() -> anyhow::Result<()> {
 
 pub(crate) fn resolve_setup_sync() {
     AsyncHandler::spawn(|| async {
-        AsyncHandler::spawn_blocking(init_scheme);
+        if !cfg!(all(windows, feature = "dev-sidecar")) {
+            AsyncHandler::spawn_blocking(init_scheme);
+        }
         AsyncHandler::spawn_blocking(server::embed_server);
         #[cfg(target_os = "linux")]
         AsyncHandler::spawn_blocking(watch_linux_theme_changed);
@@ -172,7 +174,7 @@ async fn init_silent_updater() {
     use crate::core::SilentUpdater;
     use crate::core::handle::Handle;
 
-    if crate::traffic_statistics::MANUAL_UPDATES {
+    if !crate::distribution::updates_configured() {
         logging!(
             info,
             Type::Setup,

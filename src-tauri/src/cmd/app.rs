@@ -55,7 +55,7 @@ pub async fn install_update(
     version: String,
     on_event: Channel<DownloadEvent>,
 ) -> CmdResult<bool> {
-    if crate::traffic_statistics::MANUAL_UPDATES {
+    if !crate::distribution::updates_configured() {
         return Err(super::CommandFailure::plain(
             "This custom statistics build requires a validated custom installer; official updates are disabled",
         ));

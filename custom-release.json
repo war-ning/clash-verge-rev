@@ -1,6 +1,10 @@
 {
   "upstreamTag": "v2.5.8",
-  "statisticsVersion": 1,
+  "statisticsVersion": 2,
   "updateMode": "manual",
-  "status": "development"
+  "status": "development",
+  "upstreamCommit": "4337bd85758d54d7b9044b2da3c9ac1176eae1f3",
+  "updateEndpoint": "",
+  "updatePublicKey": "",
+  "issue": 1
 }

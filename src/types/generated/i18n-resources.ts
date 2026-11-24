@@ -1605,101 +1605,69 @@ export interface TranslationResources {
       }
     }
     trafficStatistics: {
-      all: string
-      apply: string
-      ascending: string
+      actions: string
+      addresses: string
+      addressRanking: string
+      appProcess: string
+      appRanking: string
+      apps: string
+      back: string
       cancel: string
+      chain: string
       clear: string
       clearConfirm: string
-      cleared: string
-      clearSearch: string
-      close: string
       collecting: string
-      combinations: string
-      confirm: string
-      copied: string
       copy: string
-      coverage: string
-      coverageHelp: string
-      custom: string
-      default: string
-      details: string
-      development: string
+      daily: string
+      dailyScope: string
+      date: string
       direct: string
       disconnected: string
       download: string
-      enabled: string
-      end: string
-      excluded: string
       export: string
-      exported: string
       failure: string
-      group: string
-      groups: string
-      identity: string
-      incompleteExport: string
-      inconsistent: string
-      known: string
+      gaps: string
+      hour: string
+      ip: string
+      lastSeen: string
+      limitations: string
       loading: string
-      manage: string
-      manualUpdates: string
-      metric: string
+      minutes: string
       month: string
-      name: string
-      nameOnly: string
-      noCoverage: string
       noMatch: string
-      none: string
+      noPath: string
       noSamples: string
-      observed: string
-      partial: string
-      path: string
+      noTraffic: string
+      pause: string
       paused: string
-      pendingDates: string
-      privacy: string
+      pending: string
+      period: string
+      preview: string
       process: string
-      processHelp: string
       proxy: string
-      rangeError: string
-      ranking: string
-      rawProcess: string
-      recordingOff: string
-      recordProcesses: string
-      recordTargets: string
       refresh: string
-      remaining: string
       reset: string
-      retention: string
       retry: string
       route: string
-      sample: string
-      save: string
+      rule: string
+      ruleChain: string
       saved: string
       scope: string
       search: string
-      selectAll: string
-      share: string
-      showAll: string
-      showing: string
-      showLess: string
-      start: string
+      sort: string
+      startCollection: string
+      storage: string
       target: string
-      theme: string
-      timeDetails: string
       title: string
       today: string
       total: string
-      trend: string
-      unattributed: string
-      unattributedHelp: string
       unknown: string
-      unknownRoute: string
-      unsaved: string
+      unknownProcess: string
+      unknownRule: string
+      unknownTarget: string
       updated: string
       upload: string
-      warnings: string
       week: string
-      zero: string
     }
   }
 }

@@ -1,5 +1,7 @@
 # Traffic statistics: interaction and implementation contract
 
+> Historical contract. The [development plan dated 2026-11-19](traffic-stats-development-plan.md) supersedes conflicting scope, accounting, storage, and update requirements below.
+
 Date: 2026-10-19. Scope approved in the rewrite handoff and
 [refactor plan](traffic-stats-refactor-plan.md). This document makes that scope
 concrete; it does not claim that the feature has shipped.

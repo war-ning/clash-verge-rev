@@ -1,5 +1,7 @@
 # 同步官方正式版标签与升级自定义版本
 
+> 本文保留手动操作参考。当前自动同步、验证及自定义更新渠道以[2026-11-19 详细开发计划](traffic-stats-development-plan.md)为准；不代表自动流水线已经实现。
+
 ## 当前起点
 
 直接在当前项目 `D:\project\MyDemo\verge` 开发，当前分支为 `codex/traffic-stats-rewrite`。不建立额外 worktree；任何 worktree 都不得放在 C 盘。

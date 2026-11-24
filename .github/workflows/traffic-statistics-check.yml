@@ -1,0 +1,38 @@
+name: Traffic statistics verification
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/traffic-stats-rewrite
+  pull_request:
+    paths:
+      - 'crates/clash-verge-traffic/**'
+      - 'src-tauri/src/traffic_statistics/**'
+      - 'src/components/traffic-statistics/**'
+      - 'src/services/traffic-statistics/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/traffic-statistics-check.yml'
+
+permissions:
+  contents: read
+
+env:
+  HUSKY: 0
+
+jobs:
+  statistics:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.21.0'
+      - uses: pnpm/action-setup@v6
+      - run: pnpm install --frozen-lockfile
+      - run: cargo test --locked -p clash-verge-traffic
+      - run: cargo clippy --locked -p clash-verge-traffic --all-targets -- -D warnings
+      - run: pnpm typecheck
+      - run: pnpm exec eslint src/components/traffic-statistics src/services/traffic-statistics --max-warnings=0
+      - run: pnpm web:build

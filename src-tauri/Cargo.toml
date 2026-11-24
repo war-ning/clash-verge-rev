@@ -32,6 +32,7 @@ identifier = "io.github.clash-verge-rev.clash-verge-rev"
 tauri-build = { version = "2.7.1", features = [] }
 
 [dependencies]
+clash-verge-traffic = { path = "../crates/clash-verge-traffic" }
 clash-verge-draft = { workspace = true }
 clash-verge-media-unlock = { workspace = true }
 clash-verge-logging = { workspace = true }

@@ -1,6 +1,6 @@
 ## Traffic statistics rewrite (development)
 
-- 新增独立流量统计，支持策略组多选、进程身份查看、趋势分析与完整记录导出
+- Added automatic traffic collection with application and destination rankings, daily usage, matched rules, and outbound details.
 
 ## v2.5.8
 

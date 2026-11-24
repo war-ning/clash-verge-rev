@@ -325,6 +325,7 @@ impl SilentUpdater {
     }
 
     async fn install(update: Update, bytes: Vec<u8>) -> Result<()> {
+        crate::distribution::prepare_update().await?;
         Ok(tokio::task::spawn_blocking(move || update.install(&bytes)).await??)
     }
 

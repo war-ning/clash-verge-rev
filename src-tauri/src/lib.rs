@@ -9,6 +9,7 @@ mod enhance;
 mod feat;
 mod process;
 mod traffic_statistics;
+mod distribution;
 pub mod utils;
 
 use crate::constants::files;
@@ -159,8 +160,8 @@ mod app_init {
             cmd::sync_runtime_providers,
             cmd::get_clash_info,
             cmd::traffic_statistics::read_traffic_statistics,
-            cmd::traffic_statistics::configure_traffic_statistics,
             cmd::traffic_statistics::clear_traffic_statistics,
+            cmd::traffic_statistics::export_traffic_statistics,
             cmd::patch_clash_config,
             cmd::patch_clash_mode,
             cmd::get_clash_mode,

@@ -1,65 +1,55 @@
-export type Dimension = 'target' | 'process' | 'group'
-export type Metric = 'total' | 'download' | 'upload'
-type Route = 'direct' | 'proxy' | 'unknown'
-
-export interface Identity {
+export interface TrafficQuery {
+  period: 'today' | 'hour' | 'week' | 'month'
+  route: 'proxy' | 'direct' | 'unknown'
+  search: string
   target: string | null
-  process: string | null
-  path: string | null
-  group: string | null
-  route: Route
-  unattributed: boolean
+  byProcess: boolean
+  metric: 'total' | 'upload' | 'download'
+  page: number
 }
 
-export interface TrafficRecord extends Identity {
-  at: number
+export interface TargetRow {
+  target: string
   upload: number
   download: number
+  lastSeen: number
 }
 
-export interface Coverage {
-  start: number
-  end: number
-  offset: number
-  consistent: boolean
+export interface DetailRow extends TargetRow {
+  ip: string
+  process: string
+  path: string
+  rule: string
+  rulePayload: string
+  chain: string
+  route: string
 }
 
-export interface StatisticsSettings {
-  enabled: boolean
-  retentionDays: number
-  recordTargets: boolean
-  recordProcesses: boolean
-}
-
-export interface StatisticsSnapshot {
-  records: TrafficRecord[]
-  coverage: Coverage[]
-  groups: string[]
-  settings: StatisticsSettings
-  warnings: string[]
-  savedAt: number
-  collecting: boolean
-  durable: boolean
-}
-
-export interface Query {
+export interface TrafficSnapshot {
   start: number
   end: number
   timezone: string
-  groups: string[] | null
-  search: string
-  dimension: Dimension
-  metric: Metric
-  order: 'default' | 'name' | 'ascending'
-  focus?: { dimension: Dimension; key: string }
-  interval?: { start: number; end: number }
+  collecting: boolean
+  observedAt: number
+  savedAt: number
+  pending: boolean
+  warning: string | null
+  totals: { upload: number; download: number }
+  targets: TargetRow[]
+  matchedTargets: number
+  details: DetailRow[]
+  matchedDetails: number
+  daily: { date: string; upload: number; download: number }[]
+  gapMillis: number
+  databaseBytes: number
 }
 
-export interface Ranking {
-  key: string
-  identity: Identity
-  label: string | null
-  upload: number
-  download: number
-  special: boolean
-}
+export const initialQuery = (): TrafficQuery => ({
+  period: 'today',
+  route: 'proxy',
+  search: '',
+  target: null,
+  byProcess: true,
+  metric: 'total',
+  page: 0,
+})

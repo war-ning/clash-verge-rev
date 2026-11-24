@@ -1,5 +1,6 @@
 [workspace]
 members = [
+  "crates/clash-verge-traffic",
   "src-tauri",
   "crates/clash-verge-draft",
   "crates/clash-verge-media-unlock",
