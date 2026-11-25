@@ -1,6 +1,7 @@
-## Traffic statistics rewrite (development)
+## Traffic statistics updates
 
 - Added automatic traffic collection with application and destination rankings, daily usage, matched rules, and outbound details.
+- Fixed the Windows update dialog and made automatic update checks retry sooner after network errors.
 
 ## v2.5.8
 <!-- Release-notes skeleton. Entries accumulate in ./Changelog.md as PRs land;

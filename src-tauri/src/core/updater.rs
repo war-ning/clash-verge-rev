@@ -174,33 +174,14 @@ pub fn is_build_to_stable(current: &str, remote: &str) -> bool {
     !build.is_empty() && !base.contains('-') && base == remote.trim_start_matches('v')
 }
 
-/// Compares numeric version components after stripping version suffixes.
 fn version_lte(a: &str, b: &str) -> bool {
-    let parse = |v: &str| -> Vec<u64> {
-        v.trim_start_matches('v')
-            .split(['-', '+'])
-            .next()
-            .unwrap_or("0")
-            .split('.')
-            .filter_map(|part| part.parse::<u64>().ok())
-            .collect()
-    };
-
-    let a_parts = parse(a);
-    let b_parts = parse(b);
-    let len = a_parts.len().max(b_parts.len());
-
-    for i in 0..len {
-        let av = a_parts.get(i).copied().unwrap_or(0);
-        let bv = b_parts.get(i).copied().unwrap_or(0);
-        if av < bv {
-            return true;
-        }
-        if av > bv {
-            return false;
-        }
+    match (
+        semver::Version::parse(a.trim_start_matches('v')),
+        semver::Version::parse(b.trim_start_matches('v')),
+    ) {
+        (Ok(candidate), Ok(current)) => !candidate.cmp_precedence(&current).is_gt(),
+        _ => true,
     }
-    true // equal
 }
 
 /// Maps UI language to one of the three NSIS translations, defaulting to English.
@@ -695,11 +676,14 @@ impl SilentUpdater {
         tokio::time::sleep(std::time::Duration::from_secs(10)).await;
 
         loop {
-            if let Err(e) = self.check_and_download(&app_handle).await {
-                logging!(warn, Type::System, "Silent updater: cycle error: {e}");
-            }
-
-            tokio::time::sleep(std::time::Duration::from_secs(24 * 60 * 60)).await;
+            let delay = match self.check_and_download(&app_handle).await {
+                Ok(()) => Duration::from_secs(24 * 60 * 60),
+                Err(error) => {
+                    logging!(warn, Type::System, "Silent updater: cycle error: {error}");
+                    Duration::from_secs(15 * 60)
+                }
+            };
+            tokio::time::sleep(delay).await;
         }
     }
 }

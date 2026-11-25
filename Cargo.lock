@@ -1091,7 +1091,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "clash-verge"
-version = "2.5.10"
+version = "2.5.11"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -1138,6 +1138,7 @@ dependencies = [
  "runas",
  "rustls",
  "scopeguard",
+ "semver 1.0.28",
  "serde",
  "serde_json",
  "serde_yaml_ng",

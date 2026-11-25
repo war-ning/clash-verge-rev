@@ -1,6 +1,6 @@
 [package]
 name = "clash-verge"
-version = "2.5.10"
+version = "2.5.11"
 description = "clash verge"
 authors = ["zzzgydi", "Tunglies", "wonfen", "MystiPanda"]
 license = "GPL-3.0-only"
@@ -54,6 +54,7 @@ tokio = { workspace = true }
 log = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+semver = "1"
 serde_yaml_ng = { workspace = true }
 smartstring = { workspace = true, features = ["serde"] }
 bitflags = { workspace = true }

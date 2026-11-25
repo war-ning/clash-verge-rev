@@ -77,7 +77,7 @@ jobs:
           tag="traffic-v$version"
           url="https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/${installer##*/}"
           jq -n --arg version "$version" --arg url "$url" --arg date "$(date -u +%FT%TZ)" \
-            --rawfile sig "$installer.sig" '{version:$version,pub_date:$date,platforms:{"windows-x86_64":{url:$url,signature:($sig|rtrimstr("\n"))}}}' \
+            --rawfile sig "$installer.sig" '{version:$version,pub_date:$date,notes:"Signed Windows x64 traffic statistics update.",platforms:{"windows-x86_64":{url:$url,signature:($sig|rtrimstr("\n"))}}}' \
             > candidate/traffic-update.json
           printf 'RELEASE_TAG=%s\n' "$tag" >> "$GITHUB_ENV"
       - name: Publish installer and update manifest together
