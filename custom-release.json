@@ -1,10 +1,10 @@
 {
   "upstreamTag": "v2.5.10",
   "statisticsVersion": 2,
-  "updateMode": "manual",
-  "status": "development",
+  "updateMode": "automatic",
+  "status": "release",
   "upstreamCommit": "c83f7ad529c7c9cb3d2d54a0955ef8c1b22a411b",
-  "updateEndpoint": "",
-  "updatePublicKey": "",
+  "updateEndpoint": "https://github.com/war-ning/clash-verge-rev/releases/latest/download/traffic-update.json",
+  "updatePublicKey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU5MjlGQTQxMjE4QkNBQUUKUldTdXlvc2hRZm9wV2FaZTJwaFp6TWJleGxVZHJhOEhzOXBDOVQraHhpckw0cjk3YlR3SHdGeGgK",
   "issue": 1
 }

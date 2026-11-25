@@ -31,8 +31,8 @@
   "identifier": "io.github.clash-verge-rev.clash-verge-rev",
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQyOEMyRjBCQkVGOUJEREYKUldUZnZmbStDeStNMHU5Mmo1N24xQXZwSVRYbXA2NUpzZE5oVzlqeS9Bc0t6RVV4MmtwVjBZaHgK",
-      "endpoints": [],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU5MjlGQTQxMjE4QkNBQUUKUldTdXlvc2hRZm9wV2FaZTJwaFp6TWJleGxVZHJhOEhzOXBDOVQraHhpckw0cjk3YlR3SHdGeGgK",
+      "endpoints": ["https://github.com/war-ning/clash-verge-rev/releases/latest/download/traffic-update.json"],
       "requireSignedVersion": true,
       "windows": {
         "installMode": "passive"

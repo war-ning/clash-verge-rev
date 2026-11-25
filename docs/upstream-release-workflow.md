@@ -6,7 +6,9 @@
 
 - `traffic-statistics-check.yml` 在维护分支上验证 Rust 和前端，生成 Windows x64 NSIS 候选包。
 - `traffic-upstream.yml` 读取官方正式 Release。干净合并后固定候选提交，复用 Windows 验证，生成草稿 PR。若遇到冲突或维护分支变动，保留人工处理。定时触发需要工作流进入 fork 的默认分支，并设置仓库变量 `TRAFFIC_UPSTREAM_SYNC=true`。创建 PR 需要仓库允许 GitHub Actions 创建 PR。
-- `traffic-release.yml` 手动接收一个已验证的维护提交，构建并签名 Windows 候选包，验证草稿 Release 的附件，再公开安装包和更新清单。发行标签使用 `traffic-v<版本>`。配置 `traffic-release` 环境中的 `TRAFFIC_SIGNING_PRIVATE_KEY` 和 `TRAFFIC_SIGNING_PRIVATE_KEY_PASSWORD`，并在 `custom-release.json` 与 Tauri 配置中填入相同的公钥和 fork 更新清单地址。完成首次覆盖升级与签名演练后再启用客户端自动更新。
+- `traffic-release.yml` 手动接收一个已验证的维护提交，构建并签名 Windows 安装包，验证草稿 Release 的附件，再公开安装包和更新清单。发行标签使用 `traffic-v<版本>`。GitHub Actions 可用后，将当前发行私钥和密码配置到 `traffic-release` 环境中的 `TRAFFIC_SIGNING_PRIVATE_KEY` 和 `TRAFFIC_SIGNING_PRIVATE_KEY_PASSWORD`。
+- 客户端从 fork 正式 Release 读取 `traffic-update.json`，验证安装包的签名和签名中的版本。客户端在后台下载更新，下次启动时由用户确认安装，并先备份配置和 SQLite。旧的手动更新版需要覆盖安装一次带此更新源的版本。
+- GitHub Actions 无法运行时，可在本机对经验证的 Windows x64 NSIS 安装包运行 `pnpm exec tauri signer sign --app-version <版本> <安装包>`。用 Tauri 读取的私钥签名，并核对签名公钥和 `custom-release.json` 一致。将安装包、签名和静态更新清单上传到向维护提交打标的草稿 Release，核对附件后再设为最新正式版本。清单的 `windows-x86_64` 项包含安装包的 GitHub Releases 下载地址和 `.sig` 内容。
 
 ## 当前起点
 
